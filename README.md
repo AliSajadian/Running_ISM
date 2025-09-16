@@ -1,5 +1,7 @@
 ### What this project is
 
+-   This is shipment tracking application to monitor and keep track of all shipments and being able to monitor sales and purchases and consumption. The ISM is an Inventory Sales Management system that can provide live data and stock details and very useful outputs in excel files and has a comprehensive report page for management using RPI5.
+
 -   Stack: Django 4 + Channels (ASGI via daphne) + Vue 3 (Vue CLI) + Tailwind.
 
 -   Domain: Inventory/Shipment Management for a factory/warehouse workflow in Farsi (timezone Asia/Tehran).
