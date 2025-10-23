@@ -18,6 +18,7 @@ import addNewMatrialType from "@/components/admin/addNewMatrialType.vue";
 import consumptionProfile from "@/components/admin/consumptionProfile.vue";
 import cancel from "@/components/admin/cancel.vue";
 import reportPage from "@/components/admin/reportPage.vue";
+import chooseReport from "@/components/admin/chooseReport.vue";
 import AllPages from "@/components/admin/AllPages.vue";
 import Products from "@/components/admin/Products.vue";
 
@@ -124,6 +125,11 @@ const routes = [
     path: '/myapp/report/',
     name: 'report',
     component: reportPage
+  },
+  {
+    path: '/myapp/chooseReport/',
+    name: 'chooseReport',
+    component: chooseReport
   },
   {
     path: '/myapp/',
