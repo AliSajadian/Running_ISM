@@ -8,7 +8,7 @@ import Input from "@/components/custom/Input.vue";
 import Dropdown from "@/components/custom/Dropdown.vue";
 
 export default {
-  name: "addNewReel",
+  name: "addNewPM2Reel",
   components: {
     Dropdown, Input,
     ModalButton,
@@ -40,7 +40,7 @@ export default {
   mounted() {
     initFlowbite();
     this.axios.get('/myapp/api/getReelNumber').then((response) => {
-      console.log("Reel data: ", response.data)
+
       this.forms.reel_number.value = response.data['next_reel_number']
       this.forms.width.value = response.data['width']
       this.forms.GSM.value = response.data['GSM']
@@ -127,7 +127,9 @@ export default {
       if (this.errors.length == 0){
         this.error = false
 
-        const response = await this.axios.post('/myapp/addNewReel/', {}, {params: params})
+        params['reel_number'] = 'pm2_' + params['reel_number']; // add pm2 prefix to reel number
+
+        const response = await this.axios.post('/myapp/addNewPM2Reel/', {}, {params: params})
 
         if (response.data['status'] == 'success'){
           this.success = true

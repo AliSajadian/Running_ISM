@@ -8,7 +8,7 @@ import {jsPDF} from "jspdf";
 import html2canvas from 'html2canvas';
 
 export default {
-  name: "reportPage",
+  name: "purchasesReportPage",
   components: {
     Lic_numer,
     Card,
@@ -116,15 +116,32 @@ export default {
       console.log(response.data)
     },
     reload() {
-      window.location.reload();
+      // Get the current filter value
+      const currentFilter = this.filters.find(f => f.lable === this.forms.purchases.filter) || this.filters[0];
+  
+      // Reload the purchases data with the current filter
+      this.report_Purchases(currentFilter.value);
+      
+      // Reset countdown timer
+      this.totalSeconds = 5 * 60;
+      
+      // Optionally show a success message
+      console.log('Data reloaded successfully');
+    //window.location.reload();
     },
     countdown() {
       if (this.totalSeconds > 0) {
         // Decrement the total seconds by one
         this.totalSeconds -= 1;
       } else {
-        // If the countdown has finished, refresh the page
-        window.location.reload();
+        // If the countdown has finished, reload the data instead of the page
+        const currentFilter = this.filters.find(f => f.lable === this.forms.purchases.filter);
+        const filterValue = currentFilter ? currentFilter.value : 'year';
+        this.report_Purchases(filterValue);
+        
+        // Reset the countdown to start again
+        this.totalSeconds = 5 * 60;
+        //window.location.reload();
       }
     },
     startCountdown() {
@@ -250,17 +267,26 @@ export default {
         <Alert :msg="alert.message"></Alert>
       </template>
     </div>
-    <p class="flex flex-row items-center gap-2">
-      <button @click="reload"
-              class="block w-auto rounded-lg bg-green-500 px-5 text-center text-sm font-medium text-white py-2.5 hover:bg-green-600 focus:outline-none focus:ring-4 focus:ring-green-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-              type="button">
-        بارگیری مجدد
-      </button>
-      {{ formattedTime }}
-    </p>
+    <div class="flex flex-row justify-between gap-2 mb-4">
+      <div class="flex flex-row items-center gap-2">
+        <button @click="reload"
+                class="block w-auto rounded-lg bg-green-500 px-5 text-center text-sm font-medium text-white py-2.5 hover:bg-green-600 focus:outline-none focus:ring-4 focus:ring-green-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                type="button">
+          بارگیری مجدد
+        </button>
+        <span>{{ formattedTime }}</span>
+      </div>
+      <router-link
+        to="/myapp/chooseReport/"
+        type="button"
+        class="block w-auto rounded-lg bg-gray-500 px-5 text-center text-sm font-medium text-white py-2.5 hover:bg-gray-600 focus:outline-none focus:ring-4 focus:ring-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-800"
+      >
+        ← بازگشت به انتخاب گزارش
+      </router-link>
+    </div>    
     <form class="mt-5 flex flex-col items-center gap-4">
       <template v-for="(val, tableName) in forms">
-        <div class="relative h-auto w-full overflow-x-auto overflow-y-scroll shadow-md max-h-[500px] sm:rounded-lg">
+        <div class="relative h-auto w-full overflow-x-auto overflow-y-scroll shadow-md max-h-[85vh] sm:rounded-lg">
           <table :id="tableName" class="w-full text-left rtl:text-right text-sm text-gray-500 dark:text-gray-400">
             <caption
                 class="bg-white p-5 text-left rtl:text-right text-lg font-semibold text-gray-900 dark:bg-gray-800 dark:text-white">

@@ -1,67 +1,45 @@
 <script>
 import Card from '@/components/Card.vue'
-import shipmentReport from './reports/shipmentReport.vue'
-import salesReport from './reports/salesReport.vue'
-import purchasesReport from './reports/purchasesReport.vue'
-import ProductsReport from './reports/ProductsReport.vue'
-import rawMaterialReport from './reports/rawMaterialReport.vue'
-import consumptionReport from './reports/consumptionReport.vue'
-import alertsReports from './reports/alertsReports.vue'
 
 export default {
   name: "chooseReport",
   components: {
     Card,
-    shipmentReport,
-    salesReport,
-    purchasesReport,
-    ProductsReport,
-    rawMaterialReport,
-    consumptionReport,
-    alertsReports
   },
   data() {
     return {
       selectedReport: '',
-      showReport: false,
       reports: [
-        { name: 'گزارش بارنامه', value: 'shipment', component: 'shipmentReport' },
-        { name: 'گزارش فروش', value: 'sales', component: 'salesReport' },
-        { name: 'گزارش خرید', value: 'purchases', component: 'purchasesReport' },
-        { name: 'گزارش محصولات', value: 'products', component: 'ProductsReport' },
-        { name: 'گزارش مواد اولیه', value: 'rawMaterial', component: 'rawMaterialReport' },
-        { name: 'گزارش مصرف', value: 'consumption', component: 'consumptionReport' },
-        { name: 'گزارش هشدارها', value: 'alerts', component: 'alertsReports' }
+        { name: 'گزارش بارنامه', value: 'shipment' },
+        { name: 'گزارش فروش', value: 'sales' },
+        { name: 'گزارش خرید', value: 'purchases' },
+        { name: 'گزارش محصولات', value: 'products' },
+        { name: 'گزارش مواد اولیه', value: 'rawMaterial' },
+        { name: 'گزارش مصرف', value: 'consumption' },
+        { name: 'گزارش هشدارها', value: 'alerts' }
       ]
-    }
-  },
-  computed: {
-    selectedReportComponent() {
-      const report = this.reports.find(r => r.value === this.selectedReport)
-      return report ? report.component : null
     }
   },
   methods: {
     displayReport() {
       if (this.selectedReport) {
-        this.showReport = true
+        // this.showReport = true
+
+        // Navigate to the specific report route instead of showing it as a child component
+        this.$router.push(`/myapp/${this.selectedReport}Report/`)
       }
     },
-    resetReport() {
-      this.showReport = false
-      this.selectedReport = ''
-    }
   }
 }
 </script>
 
 <template>
-  <!-- Selection Card with centered layout -->
-  <div v-if="!showReport">
+  <!-- Selection Card with full width -->
+  <div class="w-full">
     <Card title="انتخاب گزارش">
       <div class="flex flex-col gap-4 items-center justify-center p-4">
-        <!-- Dropdown -->
-        <div class="w-full max-w-md">
+        <!-- Dropdown - much wider now -->
+        <div class="w-full">
           <label for="report-select" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
             انتخاب نوع گزارش
           </label>
@@ -101,23 +79,6 @@ export default {
         </router-link>
       </div>
     </Card>
-  </div>
-
-  <!-- Display Selected Report - NO wrapper, direct component -->
-  <div v-if="showReport" class="w-full min-h-screen">
-    <!-- Back Button - Fixed position -->
-    <div class="fixed top-4 left-4 z-50">
-      <button
-        @click="resetReport"
-        type="button"
-        class="text-white bg-gray-500 hover:bg-gray-600 focus:ring-4 focus:outline-none focus:ring-gray-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-800"
-      >
-        ← بازگشت به انتخاب گزارش
-      </button>
-    </div>
-
-    <!-- Dynamic Component - Full width, no constraints -->
-    <component :is="selectedReportComponent" />
   </div>
 </template>
 

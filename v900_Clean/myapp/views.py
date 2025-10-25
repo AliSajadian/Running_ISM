@@ -459,12 +459,14 @@ def get_consumption_profile_names(request):
             # Return a   500 error for any exceptions
             return JsonResponse({'error': str(e)}, status=500)
 
+
 def get_reel_number(request):
     if request.method == 'GET':
         # Load the last reel number from the Products DB
         last_product = Products.objects.last()
         if last_product:
-            last_reel_number = last_product.reel_number
+            # remove pm2 prefix from reel number
+            last_reel_number = str(last_product.reel_number)[4:] if str(last_product.reel_number).lower().startswith('pm') else last_product.product.reel_number
             width = last_product.width
             GSM = last_product.gsm
             length = last_product.length
@@ -3332,7 +3334,7 @@ def report_RawMaterial(request):
 
 
 @csrf_exempt
-def report_Products(request):
+def report_Products_(request):
     try:
         if request.method == 'POST':
             filter_type = request.GET.get('filter')
@@ -3365,6 +3367,84 @@ def report_Products(request):
                      'date',
                      'location',
                      'width',
+                     'reel_number',
+                     'gsm',
+                     'length',
+                     'grade',
+                     'breaks',
+                     'status',
+                     'receive_date',
+                     'last_date',
+                     'comments',
+                     'qr_code',
+                     'profile_name',
+                     'shipment_id_id',
+                     'username',
+                     'logs'
+                 ]
+
+                data = {'values': list(products), 'fields': field_names, 'title': 'لیست محصولات',}
+                return JsonResponse(data=data, status=200)
+            else:
+                return JsonResponse({'status': 'error', 'message': 'No product records found'}, status=404)
+        else:
+            return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@csrf_exempt
+def report_Products(request):
+    try:
+        if request.method == 'POST':
+            filter_type = request.GET.get('filter')
+            current_time = timezone.now()
+
+            if filter_type == 'year':
+                products = Products.objects.filter(receive_date__year=current_time.year, status='In-stock').order_by('-width').values()
+            elif filter_type == 'month':
+                products = Products.objects.filter(receive_date__month=current_time.month, status='In-stock').order_by('-width').values()
+            elif filter_type == 'week':
+                start_of_last_week = current_time - timedelta(days=6)
+                end_of_last_week = current_time
+                products = Products.objects.filter(receive_date__range=(start_of_last_week, end_of_last_week), status='In-stock').order_by('-width').values()
+            elif filter_type == 'day':
+                hours_ago = current_time - timedelta(hours=24)
+                products = Products.objects.filter(receive_date__gte=hours_ago, receive_date__lt=current_time, status='In-stock').order_by('-width').values()
+            else:
+                return JsonResponse({'status': 'error', 'message': 'Invalid filter type'}, status=400)
+
+            if products.exists():
+                for product in products:
+                    # Process reel_number to extract Line and clean reel_number
+                    reel_number = str(product.get('reel_number', ''))
+                    
+                    if reel_number.lower().startswith('pm2_'):
+                        product['line'] = 'pm2'
+                        product['reel_number'] = reel_number[4:]  # Remove 'pm2_' prefix
+                    elif reel_number.lower().startswith('pm3_'):
+                        product['line'] = 'pm3'
+                        product['reel_number'] = reel_number[4:]  # Remove 'pm3_' prefix
+                    elif reel_number.lower().startswith('pm4_'):
+                        product['line'] = 'pm4'
+                        product['reel_number'] = reel_number[4:]  # Remove 'pm4_' prefix
+                    else:
+                        product['line'] = 'pm1'
+                        # reel_number stays as is
+                    
+                    # Convert datetime fields
+                    for field in datetime_fields:
+                        if field in product and product[field] is not None:
+                            # Convert to Shamsi date
+                            shamsi_date = jdatetime.datetime.fromgregorian(datetime=product[field])
+                            # Update the field in the dictionary
+                            product[field] = shamsi_date.strftime('%Y-%m-%d %H:%M')
+                # field_names = [k for k in list(products)[0]]
+                field_names =[
+                     'date',
+                     'location',
+                     'width',
+                     'line',
                      'reel_number',
                      'gsm',
                      'length',
@@ -3492,6 +3572,10 @@ def report_Alert(request):
 def all_pages(request):
     if request.method == 'GET':
         return render(request, 'all_pages.html')
+
+def choose_report(request):
+    if request.method == 'GET':
+        return render(request, 'all_pages.html') 
 
 @csrf_exempt
 def products_page(request):

@@ -5,6 +5,9 @@ import addSupplier from "@/components/addSupplier.vue";
 import addCustomer from "@/components/addCustomer.vue";
 import addRawMaterial from "@/components/addRawMaterial.vue";
 import addNewReel from "@/components/addNewReel.vue";
+import addNewPM2Reel from "@/components/addNewPM2Reel.vue";
+import addNewPM3Reel from "@/components/addNewPM3Reel.vue";
+import addNewPM4Reel from "@/components/addNewPM4Reel.vue";
 import forkliftPanel from "@/components/forkliftPanel.vue";
 import createShipment from "@/components/createShipment.vue";
 import sales from "@/components/weightStation/sales.vue";
@@ -45,6 +48,18 @@ export default {
         {
           path: '/myapp/addNewReel/',
           name: 'addNewReel',
+        },
+        {
+          path: '/myapp/addNewPM2Reel/',
+          name: 'addNewPM2Reel',
+        },
+        {
+          path: '/myapp/addNewPM3Reel/',
+          name: 'addNewPM3Reel',
+        },
+        {
+          path: '/myapp/addNewPM4Reel/',
+          name: 'addNewPM4Reel',
         },
         {
           path: '/myapp/forkliftPanel/',

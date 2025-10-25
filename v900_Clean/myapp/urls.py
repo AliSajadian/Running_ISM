@@ -62,6 +62,9 @@ urlpatterns = [
     path("addNewAnbar/", add_new_anbar),
     path("addConsumptionProfile/", add_consumption_profile),
     path("addNewReel/", add_new_reel),
+    path("addNewPM2Reel/", add_new_reel),
+    path("addNewPM3Reel/", add_new_reel),
+    path("addNewPM4Reel/", add_new_reel),
     path("addShipment/", add_shipment),
     path("weightStationPanel/", weight_station_panel),
     path("updateWeight1/", update_weight1),
@@ -71,6 +74,5 @@ urlpatterns = [
     path("forkliftPanel/", forklift_panel),
     path("cancel/", cancel),
     path("report/", report_page),
-
-
+    path("chooseReport/", choose_report),
 ]
