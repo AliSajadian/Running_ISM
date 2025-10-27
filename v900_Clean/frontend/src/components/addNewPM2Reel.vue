@@ -23,11 +23,29 @@ export default {
         GSM:{type:'input', name: 'گرماژ', title:'گرماژ', data:'', value:'', lable:'number'},
         length:{type:'input', name: 'طول', title:'طول', data:'', value:'', lable:'number'},
         breaks:{type:'input', name: 'پارگی', title:'پارگی', data:'', value:'', lable:'number'},
-        grade:{type:'input', name: 'نوع', title:'نوع', data:'', value:'', lable:'text'},
+        grade:{type:'radio', name: 'نوع', title:'نوع', data:'', value:'', lable:'text'},
         consumption_profile_name:{type:'dropdown', name:'پروفایل مصرف', title:'پروفایل مصرف', data:'', value:''},
-        commnet: {type:'input', name: 'توضیحات', title: 'توضیحات', value: '', lable:'comment'},
+        commnet: {type:'radio', name: 'توضیحات', title: 'توضیحات', value: '', lable:'comment'},
         username: {type:'input', name: 'نام کاربر', title: 'نام کاربر', value: '', lable:'text'},
       },
+          // Add these new properties
+      gradeOptions: [
+        'Test Linear Homayoun',
+        'Kraft Linear Homayoun',
+        'Whitetop Linear Homayoun',
+        'Flutting Homayoun'
+      ],
+      selectedGradeOption: '',  // Track which radio is selected
+      customGradeValue: '',     // For custom input when 'else' is selected
+      commentOptions: [
+        'عالی',
+        'اختلاف ۲ گرم بالا/پایین تر',
+        'اختلاف رطوبت بالا/پایین تر',
+        'پارگی ۱',
+        'پارگی ۲ یا بیشتر'
+      ],
+      selectedCommentOption: '',
+      customCommentValue: '',
       success: false,
       error: false,
       warinig: {status: false, data: []},
@@ -39,6 +57,17 @@ export default {
   },
   mounted() {
     initFlowbite();
+    
+    // Set default selections for radio buttons
+    if (this.gradeOptions.length > 0) {
+      this.selectedGradeOption = this.gradeOptions[0]  // Select "Test Linear Homayoun"
+      this.forms.grade.value = this.gradeOptions[0]
+    }
+    if (this.commentOptions.length > 0) {
+      this.selectedCommentOption = this.commentOptions[0]
+      this.forms.commnet.value = this.commentOptions[0]
+    }
+    
     this.axios.get('/myapp/api/getReelNumber').then((response) => {
 
       this.forms.reel_number.value = response.data['next_reel_number']
@@ -46,7 +75,7 @@ export default {
       this.forms.GSM.value = response.data['GSM']
       this.forms.length.value = response.data['length']
       this.forms.breaks.value = response.data['breaks']
-      this.forms.grade.value = response.data['grade']
+
       this.forms.consumption_profile_name.value = response.data['profile_name']
       this.forms.consumption_profile_name.name = this.forms.consumption_profile_name.name +': '+response.data['profile_name']
 
@@ -64,6 +93,32 @@ export default {
     },
   },
   methods: {
+    handleGradeSelection(option) {
+      if (option === 'else') {
+        this.selectedGradeOption = 'else';
+        this.forms.grade.value = this.customGradeValue;
+      } else {
+        this.selectedGradeOption = option;
+        this.forms.grade.value = option;
+        this.customGradeValue = '';
+      }
+    },
+    handleCustomGradeInput() {
+      this.forms.grade.value = this.customGradeValue;
+    },
+    handleCommentSelection(option) {
+      if (option === 'else') {
+        this.selectedCommentOption = 'else';
+        this.forms.commnet.value = this.customCommentValue;
+      } else {
+        this.selectedCommentOption = option;
+        this.forms.commnet.value = option;
+        this.customCommentValue = '';
+      }
+    },
+    handleCustomCommentInput() {
+      this.forms.commnet.value = this.customCommentValue;
+    },
     clicked(k, name){
       //
       if (k == 'consumption_profile_name'){
@@ -77,7 +132,7 @@ export default {
     async addNewReel() {
       this.loading = true
       let params = {
-        "reel_number": this.forms.reel_number.value,
+        "reel_number": 'PM2_' + this.forms.reel_number.value, 
         "width": this.forms.width.value,
         "gsm": this.forms.GSM.value,
         "length": this.forms.length.value,
@@ -127,8 +182,6 @@ export default {
       if (this.errors.length == 0){
         this.error = false
 
-        params['reel_number'] = 'pm2_' + params['reel_number']; // add pm2 prefix to reel number
-
         const response = await this.axios.post('/myapp/addNewPM2Reel/', {}, {params: params})
 
         if (response.data['status'] == 'success'){
@@ -164,7 +217,7 @@ export default {
           <body>
             <div class="qr-container">
               <img src="${this.qrcode}" style="max-width: 330px;" />
-              <div class="reel-number">${this.forms.reel_number.value}</div>
+              <div class="reel-number">${'PM2_' + this.forms.reel_number.value}</div>
               <div class="label">H O M A Y O U N</div>
               <div class="details">${this.forms.grade.value}</div>
               <div class="details">${this.forms.width.value} cm - ${this.forms.GSM.value} gr</div>
@@ -181,7 +234,7 @@ export default {
 }
 </script>
 <template>
-  <Card title="اضافه کردن رول جدید">
+  <Card title="PM2 - اضافه کردن رول جدید">
     <form class="flex flex-col items-center mt-5 gap-4">
       <div v-if="error" class="flex p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400" role="alert">
         <svg class="flex-shrink-0 inline w-4 h-4 me-3 mt-[2px]" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
@@ -213,33 +266,126 @@ export default {
         </div>
       </div>
       <template v-for="(val, form_name) in forms">
-<!--        <template v-if="val.type=='input'">-->
-<!--          <div class="relative">-->
-<!--            <input v-model="val.value" type="text" :id="form_name" :class="[val.error ? 'text-red-900 border-red-500 focus:border-red-500' : 'text-gray-900 focus:border-green-500 border-gray-300']" class="block px-2.5 pb-2.5 pt-4 w-full text-sm  bg-transparent rounded-lg border-1 appearance-none focus:outline-none focus:ring-0 peer" placeholder="" />-->
-<!--            <label :for="form_name" :class="[val.error ? 'peer-focus:text-red-500 text-red-500' : 'peer-focus:text-green-500 text-gray-500']" class="absolute text-sm dark:text-gray-400 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white dark:bg-gray-900 px-2 peer-focus:px-2  peer-focus:dark:text-blue-500 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto start-1">-->
-<!--              {{val.name}}-->
-<!--            </label>-->
-<!--          </div>-->
-<!--        </template>-->
-<!--        <template v-if="val.type=='dropdown'">-->
-<!--          <button :id="form_name + 'Button'" :data-dropdown-toggle="form_name+'dropdown'" class="justify-between w-44 text-white bg-green-500 hover:bg-green-600 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center inline-flex items-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" type="button">-->
-<!--            {{val.name}}-->
-<!--            <svg class="w-2.5 h-2.5 ms-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6">-->
-<!--              <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/>-->
-<!--            </svg>-->
-<!--          </button>-->
-<!--          &lt;!&ndash; Dropdown menu &ndash;&gt;-->
-<!--          <div :id="form_name+'dropdown'" class="z-50 hidden bg-white divide-y divide-gray-100 rounded-lg shadow w-44 dark:bg-gray-700">-->
-<!--            <ul class="overflow-y-auto h-auto max-h-48 py-2 text-sm text-gray-700 dark:text-gray-200" :aria-labelledby="form_name + 'Button'">-->
-<!--              <li v-for="data in val.data">-->
-<!--                <a @click='clicked(form_name ,data)' type="button" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">-->
-<!--                  {{ data }}-->
-<!--                </a>-->
-<!--              </li>-->
-<!--            </ul>-->
-<!--        </div>-->
-<!--        </template>-->
-        <template v-if="val.type=='input'">
+        <!-- Radio buttons for grade field -->
+        <template v-if="val.type=='radio' && form_name=='grade'">
+          <div class="w-full max-w-md">
+            <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+              {{ val.name }}
+            </label>
+            <div class="flex flex-col gap-3 p-4 bg-gray-50 rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600">
+              <!-- Predefined radio options -->
+              <div v-for="option in gradeOptions" :key="option" class="flex items-center">
+                <input 
+                  :id="`grade-${option}`"
+                  type="radio" 
+                  :value="option"
+                  v-model="selectedGradeOption"
+                  @change="handleGradeSelection(option)"
+                  class="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 focus:ring-green-500 dark:focus:ring-green-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                />
+                <label 
+                  :for="`grade-${option}`"
+                  class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300 cursor-pointer"
+                >
+                  {{ option }}
+                </label>
+              </div>
+              
+              <!-- "Else" radio option with custom input -->
+              <div class="flex flex-col gap-2">
+                <div class="flex items-center">
+                  <input 
+                    id="grade-else"
+                    type="radio" 
+                    value="else"
+                    v-model="selectedGradeOption"
+                    @change="handleGradeSelection('else')"
+                    class="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 focus:ring-green-500 dark:focus:ring-green-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                  <label 
+                    for="grade-else"
+                    class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300 cursor-pointer"
+                  >
+                    غیره (دیگر)
+                  </label>
+                </div>
+                
+                <!-- Custom input shown when "else" is selected -->
+                <div v-if="selectedGradeOption === 'else'" class="mr-6">
+                  <input 
+                    v-model="customGradeValue"
+                    @input="handleCustomGradeInput"
+                    type="text"
+                    class="block w-full p-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 dark:bg-gray-800 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+                    placeholder="نوع دلخواه را وارد کنید"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+        
+        <!-- Radio buttons for commnet field -->
+        <template v-else-if="val.type=='radio' && form_name=='commnet'">
+          <div class="w-full max-w-md">
+            <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+              {{ val.name }}
+            </label>
+            <div class="flex flex-col gap-3 p-4 bg-gray-50 rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600">
+              <!-- Predefined radio options -->
+              <div v-for="option in commentOptions" :key="option" class="flex items-center">
+                <input 
+                  :id="`comment-${option}`"
+                  type="radio" 
+                  :value="option"
+                  v-model="selectedCommentOption"
+                  @change="handleCommentSelection(option)"
+                  class="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 focus:ring-green-500 dark:focus:ring-green-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                />
+                <label 
+                  :for="`comment-${option}`"
+                  class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300 cursor-pointer"
+                >
+                  {{ option }}
+                </label>
+              </div>
+              
+              <!-- "سایر" radio option with custom input -->
+              <div class="flex flex-col gap-2">
+                <div class="flex items-center">
+                  <input 
+                    id="comment-else"
+                    type="radio" 
+                    value="else"
+                    v-model="selectedCommentOption"
+                    @change="handleCommentSelection('else')"
+                    class="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 focus:ring-green-500 dark:focus:ring-green-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                  <label 
+                    for="comment-else"
+                    class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300 cursor-pointer"
+                  >
+                    سایر
+                  </label>
+                </div>
+                
+                <!-- Custom input shown when "سایر" is selected -->
+                <div v-if="selectedCommentOption === 'else'" class="mr-6">
+                  <input 
+                    v-model="customCommentValue"
+                    @input="handleCustomCommentInput"
+                    type="text"
+                    class="block w-full p-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 dark:bg-gray-800 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+                    placeholder="توضیحات دلخواه را وارد کنید"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+        
+        <!-- Regular input fields -->
+        <template v-else-if="val.type=='input'">
             <Input
               :formName="form_name"
               :label="val.name"
@@ -249,7 +395,9 @@ export default {
               :value="val.value"
             />
         </template>
-        <template v-if="val.type=='dropdown'">
+        
+        <!-- Dropdown fields -->
+        <template v-else-if="val.type=='dropdown'">
           <Dropdown :formName="form_name">
             <template v-slot:btnName>
               {{val.name}}
