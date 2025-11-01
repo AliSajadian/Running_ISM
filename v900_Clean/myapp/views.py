@@ -466,7 +466,7 @@ def get_reel_number(request):
         last_product = Products.objects.last()
         if last_product:
             # remove pm2 prefix from reel number
-            last_reel_number = str(last_product.reel_number)[4:] if str(last_product.reel_number).lower().startswith('pm') else last_product.product.reel_number
+            last_reel_number = str(last_product.reel_number)[4:] if str(last_product.reel_number).lower().startswith('pm') else last_product.reel_number
             width = last_product.width
             GSM = last_product.gsm
             length = last_product.length
