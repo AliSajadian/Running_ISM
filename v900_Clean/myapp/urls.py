@@ -40,6 +40,7 @@ urlpatterns = [
     path("api/loadReportData", loadReportData),
     path("api/generateExcelReport", generate_excel_report),
     path("api/generateQrCode", generate_qrCode),
+    path("api/cleanupLabelFile", cleanup_label_file),
     path("api/reportShipment", report_shipment),
     path("api/reportSales", report_Sales),
     path("api/reportPurchases", report_Purchases),

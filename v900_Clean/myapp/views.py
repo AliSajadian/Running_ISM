@@ -3018,6 +3018,11 @@ from django.core.files.base import ContentFile
 from django.http import HttpResponse
 import base64
 # from qrcode.image.pil import PilImage
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.units import cm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 @csrf_exempt
 def generate_qrCode(request):
@@ -3027,8 +3032,9 @@ def generate_qrCode(request):
     d =json.loads(data['data'][0])
     timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
     filename = f"reel_number_{d['reel_number']}_{timestamp}.png"
-
+      
     # Generate QR code
+    # -------------------------------------------------------------
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -3048,6 +3054,7 @@ def generate_qrCode(request):
     file_path = os.path.join(qrcode_dir, filename)
     # Save the image
     img.save(file_path)
+    # -------------------------------------------------------------
 
     buffer = BytesIO()
     img.save(buffer, format="PNG")
@@ -3055,7 +3062,93 @@ def generate_qrCode(request):
     # Encode the binary data to base64
     image_base64 = base64.b64encode(buffer.read()).decode('utf-8')
 
-    return JsonResponse({'status': 'succeses', 'filename': file_path, 'file':image_base64})
+    # Generate PDF label
+    # -------------------------------------------------------------
+    label_filename = None
+    try:
+        label_dir = 'label'
+        if not os.path.exists(label_dir):
+            os.makedirs(label_dir)
+        
+        label_filename = f"label_reel_number_{d['reel_number']}_{timestamp}.pdf"
+        label_path = os.path.join(label_dir, label_filename)
+        
+        # Create PDF
+        c = canvas.Canvas(label_path, pagesize=A4)
+        width, height = A4
+        
+        # Center x position
+        center_x = width / 2
+        
+        # Start from top and work down
+        y_position = height - 3 * cm
+        
+        # Draw QR code image (330px ≈ 11.6cm)
+        qr_size = 11.6 * cm
+        c.drawImage(file_path, center_x - qr_size/2, y_position - qr_size, 
+                    width=qr_size, height=qr_size, preserveAspectRatio=True)
+        y_position -= (qr_size + 1 * cm)
+        
+        # Reel number (64pt font)
+        c.setFont("Helvetica-Bold", 64)
+        c.drawCentredString(center_x, y_position, str(d['reel_number']))
+        y_position -= 2 * cm
+        
+        # "H O M A Y O U N" label (32pt font)
+        c.setFont("Helvetica-Bold", 32)
+        c.drawCentredString(center_x, y_position, "H O M A Y O U N")
+        y_position -= 1.5 * cm
+        
+        # Grade (24pt font)
+        c.setFont("Helvetica", 24)
+        c.drawCentredString(center_x, y_position, str(d.get('grade', '')))
+        y_position -= 1.2 * cm
+        
+        # Width and GSM (24pt font)
+        c.setFont("Helvetica", 24)
+        width_gsm_text = f"{d.get('width', '')} cm - {d.get('gsm', '')} gr"
+        c.drawCentredString(center_x, y_position, width_gsm_text)
+        
+        c.save()
+
+        label_filename = label_path
+    except Exception as e:
+        # Log error but don't break the workflow
+        print(f"Error generating PDF label: {e}")
+        label_filename = None
+    # -------------------------------------------------------------
+
+    return JsonResponse({
+        'status': 'succeses', 
+        'filename': file_path, 
+        'label_filename': label_filename,
+        'file': image_base64
+    })
+
+
+@csrf_exempt
+def cleanup_label_file(request):
+    """Delete orphaned PDF label file if database insert fails"""
+    try:
+        label_filename = request.GET.get('label_filename')
+        
+        if not label_filename:
+            return JsonResponse({'status': 'error', 'message': 'No filename provided'})
+        
+        # Security check: ensure the path is within the label directory
+        if not label_filename.startswith('label/') and not label_filename.startswith('label\\'):
+            return JsonResponse({'status': 'error', 'message': 'Invalid file path'})
+        
+        # Delete the file if it exists
+        if os.path.exists(label_filename):
+            os.remove(label_filename)
+            return JsonResponse({'status': 'success', 'message': 'Label file deleted'})
+        else:
+            return JsonResponse({'status': 'success', 'message': 'File not found (already deleted or never created)'})
+            
+    except Exception as e:
+        print(f"Error cleaning up label file: {e}")
+        return JsonResponse({'status': 'error', 'message': str(e)})
 
 
 datetime_fields = ['receive_date', 'entry_time', 'weight1_time', 'weight2_time', 'exit_time', 'date', 'payment_date']

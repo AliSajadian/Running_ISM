@@ -50,6 +50,7 @@ export default {
       warinig: {status: false, data: []},
       errors: [],
       qrcode: '',
+      labelFilename: '',
       hide: false,
       loading: false,
     }
@@ -73,7 +74,7 @@ export default {
       this.forms.width.value = response.data['width']
       this.forms.GSM.value = response.data['GSM']
       this.forms.length.value = response.data['length']
-      this.forms.breaks.value = response.data['breaks']
+      this.forms.breaks.value = 0
       
       // // Handle grade value from API (only update if different from default)
       // const gradeValue = response.data['grade']
@@ -171,6 +172,9 @@ export default {
       let filename = response.data.filename
       let file = response.data.file
       this.qrcode = `data:image/png;base64,${file}`;
+      
+      // Store label filename for cleanup if needed
+      this.labelFilename = response.data.label_filename || '';
       //
       // this.qrcode = await QRCode.toDataURL(JSON.stringify(params), {
       //   width: 256,
@@ -218,9 +222,31 @@ export default {
           this.loading=false
           this.error = true
           this.errors = response.data['errors']
+          
+          // Cleanup orphaned label file if database insert failed
+          if (this.labelFilename) {
+            try {
+              await this.axios.post('/myapp/api/cleanupLabelFile', {}, {
+                params: { label_filename: this.labelFilename }
+              })
+            } catch (cleanupError) {
+              console.error('Failed to cleanup label file:', cleanupError)
+            }
+          }
         }
       } else {
         this.error = true
+        
+        // Cleanup orphaned label file if validation failed
+        if (this.labelFilename) {
+          try {
+            await this.axios.post('/myapp/api/cleanupLabelFile', {}, {
+              params: { label_filename: this.labelFilename }
+            })
+          } catch (cleanupError) {
+            console.error('Failed to cleanup label file:', cleanupError)
+          }
+        }
       }
     },
     async printQRCode() {

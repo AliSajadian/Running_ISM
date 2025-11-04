@@ -33,6 +33,7 @@ python-dateutil==2.9.0.post0
 python-decouple==3.8
 pytz==2025.2
 qrcode==7.3.1
+reportlab==3.6.8
 service-identity==21.1.0
 six==1.17.0
 sqlparse==0.4.4

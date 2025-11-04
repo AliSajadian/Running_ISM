@@ -73,7 +73,7 @@ export default {
       this.forms.width.value = response.data['width']
       this.forms.GSM.value = response.data['GSM']
       this.forms.length.value = response.data['length']
-      this.forms.breaks.value = response.data['breaks']
+      this.forms.breaks.value = 0
       
       this.forms.consumption_profile_name.value = response.data['profile_name']
       this.forms.consumption_profile_name.name = this.forms.consumption_profile_name.name +': '+response.data['profile_name']
@@ -194,9 +194,31 @@ export default {
           this.loading=false
           this.error = true
           this.errors = response.data['errors']
+
+          // Cleanup orphaned label file if database insert failed
+          if (this.labelFilename) {
+            try {
+              await this.axios.post('/myapp/api/cleanupLabelFile', {}, {
+                params: { label_filename: this.labelFilename }
+              })
+            } catch (cleanupError) {
+              console.error('Failed to cleanup label file:', cleanupError)
+            }
+          }          
         }
       } else {
         this.error = true
+
+        // Cleanup orphaned label file if validation failed
+        if (this.labelFilename) {
+          try {
+            await this.axios.post('/myapp/api/cleanupLabelFile', {}, {
+              params: { label_filename: this.labelFilename }
+            })
+          } catch (cleanupError) {
+            console.error('Failed to cleanup label file:', cleanupError)
+          }
+        }
       }
     },
     async printQRCode() {

@@ -8,7 +8,7 @@ import Input from "@/components/custom/Input.vue";
 import Dropdown from "@/components/custom/Dropdown.vue";
 
 export default {
-  name: "addNewPM2Reel",
+  name: "addNewReel",
   components: {
     Dropdown, Input,
     ModalButton,
@@ -28,15 +28,14 @@ export default {
         commnet: {type:'radio', name: 'توضیحات', title: 'توضیحات', value: '', lable:'comment'},
         username: {type:'input', name: 'نام کاربر', title: 'نام کاربر', value: '', lable:'text'},
       },
-          // Add these new properties
       gradeOptions: [
         'Test Linear Homayoun',
         'Kraft Linear Homayoun',
         'Whitetop Linear Homayoun',
         'Flutting Homayoun'
       ],
-      selectedGradeOption: '',  // Track which radio is selected
-      customGradeValue: '',     // For custom input when 'else' is selected
+      selectedGradeOption: '',
+      customGradeValue: '',
       commentOptions: [
         'عالی',
         'اختلاف ۲ گرم بالا/پایین تر',
@@ -69,15 +68,39 @@ export default {
     }
     
     this.axios.get('/myapp/api/getReelNumber').then((response) => {
-
+      console.log("Reel data: ", response.data)
       this.forms.reel_number.value = response.data['next_reel_number']
       this.forms.width.value = response.data['width']
       this.forms.GSM.value = response.data['GSM']
       this.forms.length.value = response.data['length']
-      this.forms.breaks.value = 0
+      this.forms.breaks.value = response.data['breaks']
+      
+      // // Handle grade value from API (only update if different from default)
+      // const gradeValue = response.data['grade']
+      // if (gradeValue) {
+      //   this.forms.grade.value = gradeValue
+      //   if (this.gradeOptions.includes(gradeValue)) {
+      //     this.selectedGradeOption = gradeValue
+      //   } else {
+      //     this.selectedGradeOption = 'else'
+      //     this.customGradeValue = gradeValue
+      //   }
+      // }
 
+      // // Handle comment value from API (only update if different from default)
+      // const commentValue = response.data['comments']
+      // if (commentValue) {
+      //   this.forms.commnet.value = commentValue
+      //   if (this.commentOptions.includes(commentValue)) {
+      //     this.selectedCommentOption = commentValue
+      //   } else {
+      //     this.selectedCommentOption = 'else'
+      //     this.customCommentValue = commentValue
+      //   }
+      // }
+      
       this.forms.consumption_profile_name.value = response.data['profile_name']
-      this.forms.consumption_profile_name.name = this.forms.consumption_profile_name.name +': '+response.data['profile_name']
+      this.forms.consumption_profile_name.name = this.forms.consumption_profile_name.name + ': ' + response.data['profile_name']
 
     })
     this.axios.get('/myapp/api/getConsumptionProfileNames').then((response) => {
@@ -132,7 +155,7 @@ export default {
     async addNewReel() {
       this.loading = true
       let params = {
-        "reel_number": 'PM2_' + this.forms.reel_number.value, 
+        "reel_number": this.forms.reel_number.value,
         "width": this.forms.width.value,
         "gsm": this.forms.GSM.value,
         "length": this.forms.length.value,
@@ -182,7 +205,7 @@ export default {
       if (this.errors.length == 0){
         this.error = false
 
-        const response = await this.axios.post('/myapp/addNewPM2Reel/', {}, {params: params})
+        const response = await this.axios.post('/myapp/addNewReel/', {}, {params: params})
 
         if (response.data['status'] == 'success'){
           this.success = true
@@ -195,31 +218,9 @@ export default {
           this.loading=false
           this.error = true
           this.errors = response.data['errors']
-
-          // Cleanup orphaned label file if database insert failed
-          if (this.labelFilename) {
-            try {
-              await this.axios.post('/myapp/api/cleanupLabelFile', {}, {
-                params: { label_filename: this.labelFilename }
-              })
-            } catch (cleanupError) {
-              console.error('Failed to cleanup label file:', cleanupError)
-            }
-          }
         }
       } else {
         this.error = true
-
-        // Cleanup orphaned label file if validation failed
-        if (this.labelFilename) {
-          try {
-            await this.axios.post('/myapp/api/cleanupLabelFile', {}, {
-              params: { label_filename: this.labelFilename }
-            })
-          } catch (cleanupError) {
-            console.error('Failed to cleanup label file:', cleanupError)
-          }
-        }        
       }
     },
     async printQRCode() {
@@ -239,7 +240,7 @@ export default {
           <body>
             <div class="qr-container">
               <img src="${this.qrcode}" style="max-width: 330px;" />
-              <div class="reel-number">${'PM2_' + this.forms.reel_number.value}</div>
+              <div class="reel-number">${this.forms.reel_number.value}</div>
               <div class="label">H O M A Y O U N</div>
               <div class="details">${this.forms.grade.value}</div>
               <div class="details">${this.forms.width.value} cm - ${this.forms.GSM.value} gr</div>
@@ -256,7 +257,7 @@ export default {
 }
 </script>
 <template>
-  <Card title="PM2 - اضافه کردن رول جدید">
+  <Card title="PM1 - اضافه کردن رول جدید">
     <form class="flex flex-col items-center mt-5 gap-4">
       <div v-if="error" class="flex p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400" role="alert">
         <svg class="flex-shrink-0 inline w-4 h-4 me-3 mt-[2px]" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
@@ -471,14 +472,14 @@ export default {
               <header class="flex felx-row justify-between items-center">
                 <svg class="flex-shrink-0 w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z"/>
-              </svg>
+                </svg>
                 <h class="ms-3 text-sm font-medium">رول  {{ forms.reel_number.value }} با موفقیت به سیستم اضافه شد.</h>
                 <button @click="hide=!hide" type="button" class="ms-auto -mx-1.5 -my-1.5 bg-green-50 text-green-500 rounded-lg focus:ring-2 focus:ring-green-400 p-1.5 hover:bg-green-200 inline-flex items-center justify-center h-8 w-8 dark:bg-gray-800 dark:text-green-400 dark:hover:bg-gray-700">
-                <span class="sr-only">Close</span>
-                <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
-                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
-                </svg>
-              </button>
+                  <span class="sr-only">Close</span>
+                  <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
+                  </svg>
+                </button>
               </header>
               <main class="flex flex-col justify-center items-center gap-2">
                 <div v-if="warinig.status == true" class="flex flex-col p-4 mb-4 text-sm text-yellow-800 border border-yellow-300 rounded-lg bg-yellow-50 dark:bg-gray-800 dark:text-yellow-300 dark:border-yellow-800" role="alert">
@@ -500,7 +501,7 @@ export default {
                 <button @click="printQRCode" type="button" class="inline-flex justify-center w-full px-2 py-1.5 text-xs font-medium text-center text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-blue-800">چاپ QR Code</button>
 
               </main>
-            </div>
+          </div>
         </div>
       </div>
     </form>
