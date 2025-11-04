@@ -76,4 +76,12 @@ urlpatterns = [
     path("cancel/", cancel),
     path("report/", report_page),
     path("chooseReport/", choose_report),
+    path("chooseReport/", choose_report),
+    path("salesReport/", choose_report),
+    path("productsReport/", choose_report),
+    path("shipmentReport/", choose_report),
+    path("purchasesReport/", choose_report),
+    path("rawMaterialReport/", choose_report),
+    path("consumptionReport/", choose_report),
+    path("alertsReport/", choose_report),
 ]

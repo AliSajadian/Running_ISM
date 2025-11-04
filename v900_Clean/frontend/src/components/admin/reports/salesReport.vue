@@ -121,7 +121,7 @@ export default {
       const currentFilter = this.filters.find(f => f.lable === this.forms.sales.filter) || this.filters[0];
   
       // Reload the sales data with the current filter
-      this.report_sales(currentFilter.value);
+      this.report_Sales(currentFilter.value);
       
       // Reset countdown timer
       this.totalSeconds = 5 * 60;
@@ -138,7 +138,7 @@ export default {
         // If the countdown has finished, reload the data instead of the page
         const currentFilter = this.filters.find(f => f.lable === this.forms.sales.filter);
         const filterValue = currentFilter ? currentFilter.value : 'year';
-        this.report_sales(filterValue);
+        this.report_Sales(filterValue);
         
         // Reset the countdown to start again
         this.totalSeconds = 5 * 60;
