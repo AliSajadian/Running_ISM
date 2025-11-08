@@ -3,6 +3,168 @@ from django.db import models
 # Create your models here.
 
 
+class OurCompany(models.Model):
+    date = models.DateTimeField(default=timezone.now, blank=True)
+    status = models.CharField(max_length=255, blank=True, default='Active')
+    company_name = models.CharField(max_length=255, null=False)
+    register_number = models.CharField(max_length=255, blank=True, null=True)
+    commercial_code = models.CharField(max_length=255, blank=True, null=True)
+    address = models.TextField(blank=True)
+    postal_code = models.CharField(max_length=255, blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=True)
+    comments = models.TextField(blank=True)
+    username = models.CharField(max_length=255, null=False, blank=True)
+    logs = models.TextField(blank=True)
+
+    class Meta:
+        db_table = 'OurCompany'
+        verbose_name = 'Our Company'
+        verbose_name_plural = 'Our Companies'
+
+    def __str__(self):
+        return f"{self.company_name} - {self.status}"
+
+
+class Customer(models.Model):
+    date = models.DateTimeField(default=timezone.now, blank=True)
+    status = models.CharField(max_length=255, blank=True, default='Active')
+    register_number = models.CharField(max_length=255, blank=True, null=True)
+    commercial_code = models.CharField(max_length=255, blank=True, null=True)
+    customer_name = models.CharField(max_length=255, null=False)
+    address = models.TextField(blank=True)
+    postal_code = models.CharField(max_length=255, blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=True)
+    comments = models.TextField(blank=True)
+    username = models.CharField(max_length=255, null=False, blank=True)
+    logs = models.TextField(blank=True)
+
+    # Meta
+    class Meta:
+        db_table = 'Customer'
+
+    def __str__(self):
+        return f"{self.customer_name} (ID: {self.status})"
+
+
+class Supplier(models.Model):
+    date = models.DateTimeField(default=timezone.now, blank=True)
+    status = models.CharField(max_length=255, blank=True, default='Active')
+    supplier_name = models.CharField(max_length=255, null=False)
+    address = models.TextField(blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    comments = models.TextField(blank=True)
+    username = models.CharField(max_length=255, null=False, blank=True)
+    logs = models.TextField(blank=True)
+
+    # Meta
+    class Meta:
+        db_table = 'Supplier'
+
+    def __str__(self):
+        return f"{self.supplier_name} - {self.status}"
+
+
+class MaterialType(models.Model):
+    """
+    MaterialType model represents different types of materials supplied by suppliers.
+
+    Fields:
+    - id: Auto-incrementing primary key.
+    - supplier_name: Name of the supplier. Can be null or blank.
+    - material_type: Type of material. Required field.
+    - username: Username associated with the material type. Can be null or blank.
+    """
+    status = models.CharField(max_length=50, null=True, blank=True, default='Active')
+    date = models.DateTimeField(default=timezone.now, blank=True)
+    supplier_name = models.CharField(max_length=255, null=True, blank=True)
+    # Ensure material_type is always provided to avoid empty entries
+    material_type = models.CharField(max_length=255)
+    username = models.CharField(max_length=255, null=False, blank=True)
+    logs = models.TextField(blank=True)
+
+    # Meta
+    class Meta:
+        db_table = 'MaterialType'
+
+    def __str__(self):
+        """
+        Returns a string representation of the MaterialType object, including the supplier name, material type, and username.
+        This method is used to display a human-readable representation of the object.
+        """
+        return f"{self.supplier_name} - {self.material_type} - {self.status}"
+
+
+class Unit(models.Model):
+    """
+    Represents a unit of measurement for quantities.
+
+    Attributes:
+        id (int): Auto-incrementing primary key for the unit.
+        supplier_name (str, null=True, blank=True): Name of the supplier associated with the unit.
+        material_type (str): Type of material the unit is associated with.
+        unit_name (str): Name of the unit, unique across all units.
+        count (float, optional): Value representing the unit's capacity in kilograms (e.g., 25 for a 25kg bag).
+        username (str, blank=True): Username of the user who created the unit, if applicable.
+        date (datetime): Date and time the unit was created, defaults to the current time.
+        logs (str, blank=True): Text field for storing logs or additional information about the unit.
+    """
+    status = models.CharField(max_length=255, blank=True, default='Active')
+    date = models.DateTimeField(default=timezone.now, blank=True)
+    supplier_name = models.CharField(max_length=255, null=True, blank=True)
+    material_type = models.CharField(max_length=255)
+    unit_name = models.CharField(max_length=255, null=True, blank=True)
+    count = models.FloatField(blank=True, null=True)
+    username = models.CharField(max_length=255, null=False, blank=True)
+
+    logs = models.TextField(blank=True)
+
+    # Meta
+    class Meta:
+        db_table = 'Unit'
+
+    def __str__(self):
+        """
+        Returns a string representation of the Unit object, including the Unit name, count, and username.
+        This method is used to display a human-readable representation of the object.
+        """
+        return f"{self.supplier_name} - {self.material_type} - {self.unit_name} - {self.count} - {self.status}"
+
+
+class RawMaterial(models.Model):
+    """
+    Represents a raw material used in production.
+
+    Attributes:
+        supplier_name
+        material_type (str): Type of the raw material (e.g., cotton, wool, plastic).
+        material_name (str): Name of the specific raw material (e.g., Pima cotton, Merino wool).
+        description (str, optional): Optional description of the raw material and its properties.
+        status (str): Current status of the raw material (e.g., available, low stock, discontinued).
+        comments (str, optional): Additional comments or notes about the raw material.
+    """
+    date = models.DateTimeField(default=timezone.now, blank=True)
+    status = models.CharField(max_length=255, default='Active')
+    supplier_name = models.CharField(max_length=255, null=True, blank=True)
+    material_type = models.CharField(max_length=255)
+    material_name = models.CharField(max_length=255)
+    description = models.CharField(max_length=255, blank=True)
+    comments = models.TextField(blank=True)
+    username = models.CharField(max_length=255, null=False, blank=True)
+    logs = models.TextField(blank=True)
+
+    # Meta
+    class Meta:
+        db_table = 'RawMaterial'
+
+    def __str__(self):
+        """
+        Returns a human-readable representation of the RawMaterial object.
+
+        Format: "{material_name} (ID: {material_id})"
+        """
+        return f"{self.supplier_name} - {self.material_name} - {self.material_type} - {self.description} - {self.status}"
+
+
 class Truck(models.Model):
     """
     Represents a truck used for transportation purposes.
@@ -57,7 +219,7 @@ class Shipments(models.Model):
     exit_time = models.DateTimeField(blank=True, null=True)
 
     shipment_type = models.CharField(max_length=255, choices=[('Incoming', 'Incoming'), ('Outgoing', 'Outgoing')], null=True)
-    # truck_id = models.ForeignKey(Truck, on_delete=models.SET_NULL, blank=True, null=True)
+    # truck = models.ForeignKey(Truck, on_delete=models.SET_NULL, blank=True, null=True)
     license_number = models.CharField(max_length=255,null=True)
     customer_name = models.CharField(max_length=255, null=True)
     supplier_name = models.CharField(max_length=255, null=True)
@@ -84,6 +246,12 @@ class Shipments(models.Model):
     vat = models.IntegerField(null=True)
     invoice_status = models.CharField(max_length=255, choices=[('NA', 'NA'), ('Sent', 'Sent'), ('Received', 'Received')], null=True)
     payment_status = models.CharField(max_length=255, choices=[('Terms', 'Terms'), ('Paid', 'Paid')], null=True)
+
+    stock_receipt_voucher_number = models.CharField(max_length=255, null=True)
+    stock_receipt_voucher_date = models.DateTimeField(blank=True, null=True)
+    stock_transfer_voucher_number = models.CharField(max_length=255, null=True)
+    stock_transfer_voucher_date = models.DateTimeField(blank=True, null=True)
+
     document_info = models.TextField(null=True)
     comments = models.TextField(null=True)
     cancellation_reason = models.TextField(null=True)
@@ -101,24 +269,6 @@ class Shipments(models.Model):
         String representation of the Shipment instance.
         """
         return f"{self.receive_date} - {self.shipment_type} - {self.license_number} - {self.supplier_name} - {self.customer_name} - {self.material_type} - {self.material_name} - {self.status} - {self.location}"
-
-
-class Supplier(models.Model):
-    date = models.DateTimeField(default=timezone.now, blank=True)
-    status = models.CharField(max_length=255, blank=True, default='Active')
-    supplier_name = models.CharField(max_length=255, null=False)
-    address = models.TextField(blank=True)
-    phone = models.CharField(max_length=20, blank=True)
-    comments = models.TextField(blank=True)
-    username = models.CharField(max_length=255, null=False, blank=True)
-    logs = models.TextField(blank=True)
-
-    # Meta
-    class Meta:
-        db_table = 'Supplier'
-
-    def __str__(self):
-        return f"{self.supplier_name} - {self.status}"
 
 
 class Products(models.Model):
@@ -192,57 +342,16 @@ class Products(models.Model):
         return f"Product (Product Location: {self.location}, Reel Number: {self.reel_number}, Status: {self.status})"
 
 
-class Customer(models.Model):
-    date = models.DateTimeField(default=timezone.now, blank=True)
-    status = models.CharField(max_length=255, blank=True, default='Active')
-    customer_name = models.CharField(max_length=255, null=False)
-    address = models.TextField(blank=True)
-    phone = models.CharField(max_length=20, blank=True)
-    comments = models.TextField(blank=True)
+class ShipmentProducts(models.Model):
+
+    shipment = models.ForeignKey(Shipments, on_delete=models.SET_NULL, blank=True, null=True)
+    product = models.ForeignKey(Products, on_delete=models.SET_NULL, blank=True, null=True)
+    quantity = models.IntegerField(null=True)
     username = models.CharField(max_length=255, null=False, blank=True)
     logs = models.TextField(blank=True)
 
-    # Meta
     class Meta:
-        db_table = 'Customer'
-
-    def __str__(self):
-        return f"{self.customer_name} (ID: {self.status})"
-
-
-class RawMaterial(models.Model):
-    """
-    Represents a raw material used in production.
-
-    Attributes:
-        supplier_name
-        material_type (str): Type of the raw material (e.g., cotton, wool, plastic).
-        material_name (str): Name of the specific raw material (e.g., Pima cotton, Merino wool).
-        description (str, optional): Optional description of the raw material and its properties.
-        status (str): Current status of the raw material (e.g., available, low stock, discontinued).
-        comments (str, optional): Additional comments or notes about the raw material.
-    """
-    date = models.DateTimeField(default=timezone.now, blank=True)
-    status = models.CharField(max_length=255, default='Active')
-    supplier_name = models.CharField(max_length=255, null=True, blank=True)
-    material_type = models.CharField(max_length=255)
-    material_name = models.CharField(max_length=255)
-    description = models.CharField(max_length=255, blank=True)
-    comments = models.TextField(blank=True)
-    username = models.CharField(max_length=255, null=False, blank=True)
-    logs = models.TextField(blank=True)
-
-    # Meta
-    class Meta:
-        db_table = 'RawMaterial'
-
-    def __str__(self):
-        """
-        Returns a human-readable representation of the RawMaterial object.
-
-        Format: "{material_name} (ID: {material_id})"
-        """
-        return f"{self.supplier_name} - {self.material_name} - {self.material_type} - {self.description} - {self.status}"
+        db_table = 'ShipmentProducts'
 
 
 class Purchases(models.Model):
@@ -313,6 +422,7 @@ class Purchases(models.Model):
     cancellation_reason = models.TextField(blank=True, null=True)
 
     shipment_id = models.ForeignKey(Shipments, on_delete=models.SET_NULL, blank=True, null=True)
+    # shipment = models.OneToOneField('Shipment', on_delete=models.SET_NULL, related_name='purchase')
     username = models.CharField(max_length=255, null=False, blank=True)
     logs = models.TextField(blank=True)
 
@@ -385,7 +495,8 @@ class Sales(models.Model):
     comments = models.TextField(null=True)
     cancellation_reason = models.TextField(null=True)
     shipment = models.ForeignKey('Shipments', on_delete=models.CASCADE, null=True)
-
+    # shipment = models.OneToOneField('Shipment', on_delete=models.SET_NULL, related_name='sale')
+    
     username = models.CharField(max_length=255, null=False, blank=True)
     logs = models.TextField(blank=True)
     # Meta
@@ -471,8 +582,6 @@ class AnbarGeneric(models.Model):
     # Meta
     class Meta:
         abstract = True # Make this model abstract so it's not created in the DB
-
-
 
 # Define the specific anbar models
 class Anbar_Sangin(AnbarGeneric):
@@ -681,72 +790,6 @@ class ConsumptionProfile(models.Model):
 
     def __str__(self):
         return f"{self.material_name} ({self.quantity} {self.unit})"
-
-
-class MaterialType(models.Model):
-    """
-    MaterialType model represents different types of materials supplied by suppliers.
-
-    Fields:
-    - id: Auto-incrementing primary key.
-    - supplier_name: Name of the supplier. Can be null or blank.
-    - material_type: Type of material. Required field.
-    - username: Username associated with the material type. Can be null or blank.
-    """
-    status = models.CharField(max_length=50, null=True, blank=True, default='Active')
-    date = models.DateTimeField(default=timezone.now, blank=True)
-    supplier_name = models.CharField(max_length=255, null=True, blank=True)
-    # Ensure material_type is always provided to avoid empty entries
-    material_type = models.CharField(max_length=255)
-    username = models.CharField(max_length=255, null=False, blank=True)
-    logs = models.TextField(blank=True)
-
-    # Meta
-    class Meta:
-        db_table = 'MaterialType'
-
-    def __str__(self):
-        """
-        Returns a string representation of the MaterialType object, including the supplier name, material type, and username.
-        This method is used to display a human-readable representation of the object.
-        """
-        return f"{self.supplier_name} - {self.material_type} - {self.status}"
-
-
-class Unit(models.Model):
-    """
-    Represents a unit of measurement for quantities.
-
-    Attributes:
-        id (int): Auto-incrementing primary key for the unit.
-        supplier_name (str, null=True, blank=True): Name of the supplier associated with the unit.
-        material_type (str): Type of material the unit is associated with.
-        unit_name (str): Name of the unit, unique across all units.
-        count (float, optional): Value representing the unit's capacity in kilograms (e.g., 25 for a 25kg bag).
-        username (str, blank=True): Username of the user who created the unit, if applicable.
-        date (datetime): Date and time the unit was created, defaults to the current time.
-        logs (str, blank=True): Text field for storing logs or additional information about the unit.
-    """
-    status = models.CharField(max_length=255, blank=True, default='Active')
-    date = models.DateTimeField(default=timezone.now, blank=True)
-    supplier_name = models.CharField(max_length=255, null=True, blank=True)
-    material_type = models.CharField(max_length=255)
-    unit_name = models.CharField(max_length=255, null=True, blank=True)
-    count = models.FloatField(blank=True, null=True)
-    username = models.CharField(max_length=255, null=False, blank=True)
-
-    logs = models.TextField(blank=True)
-
-    # Meta
-    class Meta:
-        db_table = 'Unit'
-
-    def __str__(self):
-        """
-        Returns a string representation of the Unit object, including the Unit name, count, and username.
-        This method is used to display a human-readable representation of the object.
-        """
-        return f"{self.supplier_name} - {self.material_type} - {self.unit_name} - {self.count} - {self.status}"
 
 
 class Alert(models.Model):

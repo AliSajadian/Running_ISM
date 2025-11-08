@@ -107,11 +107,15 @@ export default {
         },
         {
           path: '/myapp/chooseReport/',
-          name: 'choose report',
+          name: 'chooseReport',
         },
         {
           path: '/myapp/ProductsPage/',
           name: 'ProductsPage',
+        },
+        {
+          path: '/myapp/InvoicePage/',
+          name: 'InvoicePage',
         },
       ]
     }

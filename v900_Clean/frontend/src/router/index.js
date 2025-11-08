@@ -31,6 +31,7 @@ import consumptionReport from "@/components/admin/reports/consumptionReport.vue"
 import alertsReport from "@/components/admin/reports/alertsReport.vue";
 import AllPages from "@/components/admin/AllPages.vue";
 import Products from "@/components/admin/Products.vue";
+import InvoicePage from "@/components/invoicePage.vue";
 
 const routes = [
   {
@@ -200,6 +201,11 @@ const routes = [
     path: '/myapp/ProductsPage/',
     name: 'Products',
     component: Products
+  },
+  {
+    path: '/myapp/InvoicePage/',
+    name: 'InvoicePage',
+    component: InvoicePage
   },
 ]
 

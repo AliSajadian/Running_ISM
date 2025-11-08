@@ -2,21 +2,26 @@ import json
 import pandas as pd
 import logging
 from django.shortcuts import render, redirect
-from .models import *
-from django.db.models import Count
-from django.http import JsonResponse
+from django.apps import apps
 from django.core.exceptions import ValidationError
-from django.views.decorators.csrf import csrf_exempt
-from django.utils import timezone
+from django.core.paginator import Paginator, EmptyPage
 from django.db import connection
-from django.apps import apps
-from django.db import models
-from django.apps import apps
+from django.db.models import Count, Value, F, Q, Subquery, OuterRef, Case, When, CharField
+from django.db.models.functions import Concat, Substr, Replace, StrIndex, Coalesce
 from django.db.models.base import ModelBase
+from django.forms.models import model_to_dict
+from django.http import JsonResponse
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 import jdatetime
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from django.forms.models import model_to_dict
+from .models import *
+from django.conf import settings
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter, A4, landscape
+from reportlab.lib import colors
+from reportlab.platypus import Table, TableStyle
 
 # Create your views here.
 def get_time():
@@ -62,6 +67,30 @@ def append_log(fields, page):
 def not_enough_message(inventory, amount, required, transferred, location, action):
     msg = f"عدم موجودی کافی در انبار {location}! موجودی: {inventory}, درخواست شده: {amount}, مقدار مورد نیاز: {required}, انتقال یافته: {transferred}, متاسفیم! درحال حاضر موجودی در انبار {location} کافی نیست. حداکثر {transferred} از این کالا {action}."
     return msg
+
+
+def format_shamsi_date(value):
+    if not value:
+        return ''
+    try:
+        return jdatetime.datetime.fromgregorian(datetime=value).strftime('%Y-%m-%d %H:%M')
+    except Exception:
+        return value.strftime('%Y-%m-%d %H:%M') if hasattr(value, 'strftime') else str(value)
+
+
+def format_rtl_text(text):
+    if text is None:
+        return ''
+    text = str(text)
+    if not text:
+        return text
+    if arabic_reshaper and get_display:
+        try:
+            reshaped = arabic_reshaper.reshape(text)
+            return get_display(reshaped)
+        except Exception:
+            return text
+    return text
 
 # Incoming process:
 # Add Truck
@@ -1690,7 +1719,6 @@ def unload(request):
         return JsonResponse({'status': 'error', 'message': 'Invalid request method.'}, status=400)
 
 
-
 def get_widths_view(request):
     """
     A Django view function that handles GET requests to fetch widths from a specific anbar location
@@ -3023,6 +3051,16 @@ from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.units import cm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from importlib.util import find_spec
+import importlib
+
+if find_spec('arabic_reshaper') and find_spec('bidi.algorithm'):
+    arabic_reshaper = importlib.import_module('arabic_reshaper')
+    bidi_algorithm = importlib.import_module('bidi.algorithm')
+    get_display = getattr(bidi_algorithm, 'get_display', None)
+else:
+    arabic_reshaper = None
+    get_display = None
 
 @csrf_exempt
 def generate_qrCode(request):
@@ -3279,6 +3317,182 @@ def report_Sales(request):
                 return JsonResponse({'status': 'error', 'message': 'No sale records found'}, status=404)
         else:
             return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+    except Exception as e:
+        print(e)
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@csrf_exempt
+def get_sales_invoice_data(request):
+    try:
+        if request.method != 'GET':
+            return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+        page_number = request.GET.get('page', 1)
+        page_size = int(request.GET.get('page_size', 10))
+
+        queryset = Sales.objects.exclude(status='Cancelled').order_by('-date').values(
+            'id',
+            'date',
+            'license_number',
+            'customer_name',
+            'status',
+            'width',
+            'net_weight',
+            'price_per_kg',
+            'vat',
+            'total_price',
+            'extra_cost',
+            'invoice_status',
+            'invoice_number',
+        )
+
+        paginator = Paginator(queryset, page_size)
+        try:
+            page_obj = paginator.page(page_number)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        records = list(page_obj.object_list)
+        for record in records:
+            date_value = record.get('date')
+            if date_value:
+                shamsi_date = jdatetime.datetime.fromgregorian(datetime=date_value)
+                record['date'] = shamsi_date.strftime('%Y-%m-%d %H:%M')
+
+        response_payload = {
+            'values': records,
+            'fields': [
+                'id',
+                'date',
+                'license_number',
+                'customer_name',
+                'status',
+                'width',
+                'net_weight',
+                'price_per_kg',
+                'vat',
+                'total_price',
+                'extra_cost',
+                'invoice_status',
+                'invoice_number',
+            ],
+            'pagination': {
+                'page': page_obj.number,
+                'page_size': page_size,
+                'total_pages': paginator.num_pages,
+                'total_items': paginator.count,
+                'has_next': page_obj.has_next(),
+                'has_previous': page_obj.has_previous(),
+            },
+        }
+        return JsonResponse(response_payload, status=200)
+
+    except Exception as e:
+        print(e)
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@csrf_exempt
+def get_shipments_stock_transfer_voucher_data(request):
+    try:
+        if request.method != 'GET':
+            return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+        # Check if there's a shipment with non-empty list_of_reels
+        shipment_with_reels = Shipments.objects.exclude(status='Cancelled').exclude(
+            Q(list_of_reels__isnull=True) | Q(list_of_reels='')
+        ).order_by('-date').first()
+
+        if not shipment_with_reels:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Reels not found'
+            }, status=404)
+
+        # Subqueries to fetch 
+        grade_subquery = Products.objects.filter(
+            reel_number=Case(
+                When(
+                    Q(**{f'{OuterRef("list_of_reels")}__contains': ','}),
+                    then=Substr(
+                        Replace(OuterRef('list_of_reels'), Value(' '), Value('')),
+                        1,
+                        StrIndex(OuterRef('list_of_reels'), Value(',')) - 1
+                    )
+                ),
+                default=Replace(OuterRef('list_of_reels'), Value(' '), Value('')),
+                output_field=CharField()
+            )
+        ).values('grade')[:1]
+
+        gsm_subquery = Products.objects.filter(
+            reel_number=Case(
+                When(
+                    Q(**{f'{OuterRef("list_of_reels")}__contains': ','}),
+                    then=Substr(
+                        Replace(OuterRef('list_of_reels'), Value(' '), Value('')),  # Remove spaces
+                        1,
+                        StrIndex(OuterRef('list_of_reels'), Value(',')) - 1
+                    )
+                ),
+                default=Replace(OuterRef('list_of_reels'), Value(' '), Value('')),
+                output_field=CharField()
+            )
+        ).values('gsm')[:1]
+
+        driver_subquery = Truck.objects.filter(
+            license_number=OuterRef('license_number')
+        ).values('driver_name')[:1]
+
+        queryset = Shipments.objects.exclude(status='Cancelled').order_by('-date').annotate(
+            grade_from_product=Subquery(grade_subquery),
+            gsm_from_product=Subquery(gsm_subquery),
+            driver_name_from_truck=Subquery(driver_subquery),
+            stock_transfer_voucher_comment=Concat(
+                F('license_number'), 
+                Value(' '), 
+                F('driver_name_from_truck')  # Use the subquery result
+            )
+        ).values(
+            'stock_transfer_voucher_date',
+            'stock_transfer_voucher_number',
+            'grade_from_product',
+            'gsm_from_product',
+            'width',
+            'customer_name',
+            'quantity',
+            'net_weight',
+            'stock_transfer_voucher_comment',
+        ).first()
+
+        # Handle case when no record found
+        if not queryset:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'No shipment found'
+            }, status=404)
+
+        # Convert date if exists
+        date_value = queryset.get('stock_transfer_voucher_date')
+        if date_value:
+            shamsi_date = jdatetime.datetime.fromgregorian(datetime=date_value)
+            queryset['stock_transfer_voucher_date'] = shamsi_date.strftime('%Y-%m-%d %H:%M')
+
+        response_payload = {
+            'values': queryset,
+            'fields': [
+                'stock_transfer_voucher_date',
+                'stock_transfer_voucher_number',
+                'grade_from_product',
+                'gsm_from_product',
+                'width',
+                'customer_name',
+                'quantity',
+                'net_weight',
+                'stock_transfer_voucher_comment',
+            ],
+        }
+        return JsonResponse(response_payload, status=200)
+
     except Exception as e:
         print(e)
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
@@ -3666,9 +3880,11 @@ def all_pages(request):
     if request.method == 'GET':
         return render(request, 'all_pages.html')
 
+
 def choose_report(request):
     if request.method == 'GET':
         return render(request, 'all_pages.html') 
+
 
 @csrf_exempt
 def products_page(request):
@@ -3746,6 +3962,7 @@ def products_page(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
+
 @csrf_exempt
 def log_weight_adjustment(request):
     try:
@@ -3772,3 +3989,257 @@ def log_weight_adjustment(request):
         return JsonResponse({'status': 'success', 'message': 'Weight adjustment logged'})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@csrf_exempt
+def get_stock_transfer_voucher_data(request):
+    try:
+        if request.method != 'GET':
+            return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+        sale_id = request.GET.get('sale_id')
+        if not sale_id:
+            return JsonResponse({'status': 'error', 'message': 'sale_id is required'}, status=400)
+
+        ship_queryset = Shipments.objects.exclude(status='Cancelled').filter(
+            Q(sales_id=sale_id) | Q(id=sale_id)
+        ).order_by('-date')
+
+        shipment = ship_queryset.first()
+        if not shipment:
+            return JsonResponse({'status': 'error', 'message': 'Shipment not found'}, status=404)
+
+        list_of_reels = (shipment.list_of_reels or '').replace(' ', '')
+        first_reel = list_of_reels.split(',')[0] if list_of_reels else None
+        product_info = (
+            Products.objects.filter(reel_number=first_reel).values('grade', 'gsm').first()
+            if first_reel
+            else {}
+        )
+
+        driver_name = (
+            Truck.objects.filter(license_number=shipment.license_number)
+            .values_list('driver_name', flat=True)
+            .first()
+            or ''
+        )
+
+        comment = f"{shipment.license_number or ''} {driver_name}".strip()
+        date_value = shipment.stock_transfer_voucher_date or shipment.date
+        formatted_date = format_shamsi_date(date_value)
+
+        response_payload = {
+            'values': {
+                'stock_transfer_voucher_date': formatted_date,
+                'stock_transfer_voucher_number': shipment.stock_transfer_voucher_number or '',
+                'grade_from_product': product_info.get('grade', ''),
+                'gsm_from_product': product_info.get('gsm', ''),
+                'width': shipment.width,
+                'customer_name': shipment.customer_name,
+                'quantity': shipment.quantity or '',
+                'net_weight': shipment.net_weight,
+                'stock_transfer_voucher_comment': comment,
+            },
+            'fields': [
+                'stock_transfer_voucher_date',
+                'stock_transfer_voucher_number',
+                'grade_from_product',
+                'gsm_from_product',
+                'width',
+                'customer_name',
+                'quantity',
+                'net_weight',
+                'stock_transfer_voucher_comment',
+            ],
+        }
+        return JsonResponse(response_payload, status=200)
+
+    except Exception as e:
+        print(e)
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@csrf_exempt
+def generate_stock_transfer_voucher(request):
+    try:
+        if request.method != 'POST':
+            return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+        body = request.body.decode('utf-8').strip()
+        data = json.loads(body) if body else {}
+
+        sale_id = request.GET.get('sale_id') or request.GET.get('saleId') or data.get('sale_id')
+        form_date = data.get('date') or data.get('stock_transfer_voucher_date') or ''
+        serial_number = data.get('serial_number') or data.get('serialNumber') or data.get('stock_transfer_voucher_number') or ''
+        grade = data.get('grade') or data.get('grade_from_product') or ''
+        gsm = data.get('gsm') or data.get('gsm_from_product') or ''
+        width = data.get('width') or ''
+        customer_name = data.get('customer_name') or data.get('customerName') or ''
+        quantity = data.get('quantity') or ''
+        net_weight = data.get('net_weight') or data.get('netWeight') or ''
+        truck_info = data.get('truck_info') or data.get('truckInfo') or data.get('stock_transfer_voucher_comment') or ''
+
+        base_dir = settings.BASE_DIR
+        output_dir = os.path.join(base_dir, 'stocktransfervoucher')
+        os.makedirs(output_dir, exist_ok=True)
+
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        identifier = sale_id if sale_id else 'general'
+        filename = f'stock_transfer_voucher_{identifier}_{timestamp}.pdf'
+        file_path = os.path.join(output_dir, filename)
+
+        font_name = 'Helvetica'
+        dejavu_font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+        if os.path.exists(dejavu_font_path):
+            try:
+                if 'DejaVu' not in pdfmetrics.getRegisteredFontNames():
+                    pdfmetrics.registerFont(TTFont('DejaVu', dejavu_font_path))
+                font_name = 'DejaVu'
+            except Exception:
+                font_name = 'Helvetica'
+
+        logo_path = os.path.join(base_dir, 'frontend', 'src', 'assets', 'logo.png')
+
+        page_width, page_height = landscape(A4)
+        margin = 40
+
+        c = canvas.Canvas(file_path, pagesize=landscape(A4))
+
+        if os.path.exists(logo_path):
+            logo_width, logo_height = 140, 90
+            c.drawImage(
+                logo_path,
+                margin,
+                page_height - margin - logo_height,
+                width=logo_width,
+                height=logo_height,
+                preserveAspectRatio=True,
+                mask='auto'
+            )
+
+        logo_width, logo_height = 180, 110
+        logo_x = margin
+        logo_y = page_height - margin - logo_height
+        if os.path.exists(logo_path):
+            c.drawImage(
+                logo_path,
+                logo_x,
+                logo_y,
+                width=logo_width,
+                height=logo_height,
+                preserveAspectRatio=True,
+                mask='auto'
+            )
+
+        table_usable_width = page_width - (2 * margin)
+        text_right = margin + table_usable_width
+        text_y = page_height - margin + 8
+
+        c.setFont(font_name, 20)
+        c.drawRightString(text_right, text_y, format_rtl_text('شرکت صنایع تولیدی کاغذ و مقوای همایون'))
+        text_y -= 22
+
+        c.setFont(font_name, 16)
+        c.drawRightString(text_right, text_y, format_rtl_text('حواله خروج از انبار'))
+        text_y -= 22
+
+        c.setFont(font_name, 12)
+        c.drawRightString(text_right, text_y, format_rtl_text(f'تاریخ ارسال : {form_date}'))
+        text_y -= 16
+
+        c.drawRightString(text_right, text_y, format_rtl_text(f'شماره سریال : {serial_number}'))
+
+        def normalize(value):
+            if value is None:
+                return ''
+            return str(value)
+
+        table_data = [
+            [
+                format_rtl_text('ردیف'),
+                format_rtl_text('نام کالا و مشخصات کالا'),
+                format_rtl_text('گرماز'),
+                format_rtl_text('عرض کالا'),
+                format_rtl_text('نام خریدار'),
+                format_rtl_text('تعداد / مقدار'),
+                format_rtl_text('وزن کالا'),
+            ],
+            [
+                format_rtl_text('1'),
+                format_rtl_text(normalize(grade)),
+                format_rtl_text(normalize(gsm)),
+                format_rtl_text(normalize(width)),
+                format_rtl_text(normalize(customer_name)),
+                format_rtl_text(normalize(quantity)),
+                format_rtl_text(normalize(net_weight)),
+            ],
+            [
+                format_rtl_text('ملاحظات'),
+                format_rtl_text(normalize(truck_info)),
+                '',
+                '',
+                format_rtl_text('جمع'),
+                '',
+                format_rtl_text(normalize(net_weight)),
+            ],
+        ]
+
+        table = Table(
+            table_data,
+            colWidths=[40, 230, 80, 80, 160, 110, 110],
+            repeatRows=1,
+        )
+        table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
+            ('FONTSIZE', (0, 0), (-1, 0), 13),
+            ('FONTSIZE', (0, 1), (-1, -1), 12),
+            ('ALIGN', (0, 0), (-1, -2), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+            ('SPAN', (1, 2), (3, 2)),
+            ('ALIGN', (0, 2), (3, 2), 'RIGHT'),
+            ('ALIGN', (4, 2), (5, 2), 'CENTER'),
+            ('ALIGN', (6, 2), (6, 2), 'CENTER'),
+        ]))
+
+        table_width, table_height = table.wrap(0, 0)
+        table_y = page_height - margin - 160 - table_height
+        table.drawOn(c, margin, table_y)
+
+        footer_y = table_y - 70
+        c.setFont(font_name, 12)
+        c.drawString(margin, footer_y, 'حسابداری')
+        c.drawString(margin + 120, footer_y, 'انبارداری')
+        c.drawString(margin + 260, footer_y, 'مدیر فروش')
+        c.drawString(margin + 420, footer_y, 'مدیریت کارخانه')
+        c.drawString(margin + 620, footer_y, 'تحویل گیرنده')
+
+        ack_text = format_rtl_text('بار صحیح و سالم تحویل اینجانب')
+        ack_suffix = format_rtl_text('گردید')
+        ack_blank_width = 160
+        c.setFont(font_name, 12)
+        ack_text_width = pdfmetrics.stringWidth(ack_text, font_name, 12)
+        ack_suffix_width = pdfmetrics.stringWidth(ack_suffix, font_name, 12)
+        total_ack_width = ack_text_width + ack_blank_width + ack_suffix_width
+        ack_start_x = (page_width - total_ack_width) / 2
+        ack_y = footer_y - 40
+
+        c.drawString(ack_start_x, ack_y, ack_text)
+        suffix_x = ack_start_x + ack_text_width + ack_blank_width
+        c.drawString(suffix_x, ack_y, ack_suffix)
+
+        c.showPage()
+        c.save()
+
+        return JsonResponse({
+            'status': 'success',
+            'pdf_filename': filename,
+            'pdf_path': file_path,
+        }, status=200)
+
+    except Exception as e:
+        print(e)
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+        
+        

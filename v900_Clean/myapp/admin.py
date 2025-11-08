@@ -2,6 +2,14 @@ from django.contrib import admin
 from .models import *
 # Register your models here.
 
+
+@admin.register(OurCompany)
+class OurCompanyAdmin(admin.ModelAdmin):
+    list_display = ('company_name', 'register_number', 'commercial_code', 'address', 'postal_code', 'phone', 'status', 'comments', 'username', 'logs')
+    search_fields = ('company_name', 'phone')
+    list_filter = ('status',)
+
+
 @admin.register(Truck)
 class TruckAdmin(admin.ModelAdmin):
 
@@ -41,10 +49,19 @@ class ProductsAdmin(admin.ModelAdmin):
     list_filter = ('status', 'grade')
 
 
+class OurCompanyAdmin(admin.ModelAdmin):
+
+    list_display = ('company_name', 'register_number', 'commercial_code', 'address', 'postal_code', 'phone', 'status', 'comments', 'username', 'logs')
+
+    search_fields = ('company_name', 'phone')
+
+    list_filter = ('status',)
+
+
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
 
-    list_display = ('customer_name', 'address', 'phone', 'status', 'comments', 'username', 'logs')
+    list_display = ('customer_name', 'register_number', 'commercial_code', 'address', 'postal_code', 'phone', 'status', 'comments', 'username', 'logs')
 
     search_fields = ('customer_name', 'phone')
 

@@ -12,7 +12,8 @@
     computed: {
       isReportPage() {
         const path = this.$route.path
-        return (path.includes('Report') || path.includes('/ProductsPage')) && !path.includes('/chooseReport')
+        return (path.includes('Report') || path.includes('/ProductsPage') || 
+        path.includes('/InvoicePage')) && !path.includes('/chooseReport')
       },
       pageClass() {
         const path = this.$route.path
