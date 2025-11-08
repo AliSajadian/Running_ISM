@@ -22,6 +22,18 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter, A4, landscape
 from reportlab.lib import colors
 from reportlab.platypus import Table, TableStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+import importlib
+from importlib.util import find_spec
+
+if find_spec('arabic_reshaper') and find_spec('bidi.algorithm'):
+    arabic_reshaper = importlib.import_module('arabic_reshaper')
+    bidi_algorithm = importlib.import_module('bidi.algorithm')
+    get_display = getattr(bidi_algorithm, 'get_display', None)
+else:
+    arabic_reshaper = None
+    get_display = None
 
 # Create your views here.
 def get_time():
@@ -89,8 +101,8 @@ def format_rtl_text(text):
             reshaped = arabic_reshaper.reshape(text)
             return get_display(reshaped)
         except Exception:
-            return text
-    return text
+            pass
+    return text[::-1]
 
 # Incoming process:
 # Add Truck
@@ -4089,14 +4101,19 @@ def generate_stock_transfer_voucher(request):
         file_path = os.path.join(output_dir, filename)
 
         font_name = 'Helvetica'
+        bnazanin_path = os.path.join(base_dir, 'frontend', 'src', 'assets', 'fonts', 'BNAZANIN.TTF')
         dejavu_font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
-        if os.path.exists(dejavu_font_path):
-            try:
+        try:
+            if os.path.exists(bnazanin_path):
+                if 'BNAZANIN' not in pdfmetrics.getRegisteredFontNames():
+                    pdfmetrics.registerFont(TTFont('BNAZANIN', bnazanin_path))
+                font_name = 'BNAZANIN'
+            elif os.path.exists(dejavu_font_path):
                 if 'DejaVu' not in pdfmetrics.getRegisteredFontNames():
                     pdfmetrics.registerFont(TTFont('DejaVu', dejavu_font_path))
                 font_name = 'DejaVu'
-            except Exception:
-                font_name = 'Helvetica'
+        except Exception:
+            font_name = 'Helvetica'
 
         logo_path = os.path.join(base_dir, 'frontend', 'src', 'assets', 'logo.png')
 
@@ -4106,21 +4123,9 @@ def generate_stock_transfer_voucher(request):
         c = canvas.Canvas(file_path, pagesize=landscape(A4))
 
         if os.path.exists(logo_path):
-            logo_width, logo_height = 140, 90
-            c.drawImage(
-                logo_path,
-                margin,
-                page_height - margin - logo_height,
-                width=logo_width,
-                height=logo_height,
-                preserveAspectRatio=True,
-                mask='auto'
-            )
-
-        logo_width, logo_height = 180, 110
-        logo_x = margin
-        logo_y = page_height - margin - logo_height
-        if os.path.exists(logo_path):
+            logo_width, logo_height = 180, 110
+            logo_x = margin
+            logo_y = page_height - margin - logo_height + 20
             c.drawImage(
                 logo_path,
                 logo_x,
@@ -4156,37 +4161,37 @@ def generate_stock_transfer_voucher(request):
 
         table_data = [
             [
-                format_rtl_text('ردیف'),
-                format_rtl_text('نام کالا و مشخصات کالا'),
-                format_rtl_text('گرماز'),
-                format_rtl_text('عرض کالا'),
-                format_rtl_text('نام خریدار'),
-                format_rtl_text('تعداد / مقدار'),
                 format_rtl_text('وزن کالا'),
+                format_rtl_text('تعداد / مقدار'),
+                format_rtl_text('نام خریدار'),
+                format_rtl_text('عرض کالا'),
+                format_rtl_text('گرماز'),
+                format_rtl_text('نام کالا و مشخصات کالا'),
+                format_rtl_text('ردیف'),
             ],
             [
-                format_rtl_text('1'),
-                format_rtl_text(normalize(grade)),
-                format_rtl_text(normalize(gsm)),
-                format_rtl_text(normalize(width)),
-                format_rtl_text(normalize(customer_name)),
-                format_rtl_text(normalize(quantity)),
                 format_rtl_text(normalize(net_weight)),
+                format_rtl_text(normalize(quantity)),
+                format_rtl_text(normalize(customer_name)),
+                format_rtl_text(normalize(width)),
+                format_rtl_text(normalize(gsm)),
+                format_rtl_text(normalize(grade)),
+                format_rtl_text('1'),
             ],
             [
-                format_rtl_text('ملاحظات'),
-                format_rtl_text(normalize(truck_info)),
-                '',
+                format_rtl_text(normalize(net_weight)),
                 '',
                 format_rtl_text('جمع'),
                 '',
-                format_rtl_text(normalize(net_weight)),
+                format_rtl_text(normalize(truck_info)),
+                '',
+                format_rtl_text('ملاحظات'),
             ],
         ]
 
         table = Table(
             table_data,
-            colWidths=[40, 230, 80, 80, 160, 110, 110],
+            colWidths=[85, 100, 145, 85, 85, 210, 50],
             repeatRows=1,
         )
         table.setStyle(TableStyle([
@@ -4197,26 +4202,39 @@ def generate_stock_transfer_voucher(request):
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('GRID', (0, 0), (-1, -1), 1, colors.black),
             ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-            ('SPAN', (1, 2), (3, 2)),
-            ('ALIGN', (0, 2), (3, 2), 'RIGHT'),
-            ('ALIGN', (4, 2), (5, 2), 'CENTER'),
-            ('ALIGN', (6, 2), (6, 2), 'CENTER'),
+            ('SPAN', (4, 2), (5, 2)),
+            ('ALIGN', (4, 2), (5, 2), 'RIGHT'),
+            ('ALIGN', (3, 2), (6, 2), 'CENTER'),
+            ('ALIGN', (0, 2), (0, 2), 'CENTER'),
+            ('ALIGN', (2, 2), (2, 2), 'CENTER'),
         ]))
 
         table_width, table_height = table.wrap(0, 0)
-        table_y = page_height - margin - 160 - table_height
+        table_margin = 110
+        table_y = page_height - margin - table_margin - table_height
         table.drawOn(c, margin, table_y)
 
-        footer_y = table_y - 70
+        footer_y = table_y - (table_margin / 3)
+        footer_labels = [
+            format_rtl_text('تحویل گیرنده'),
+            format_rtl_text('مدیریت کارخانه'),
+            format_rtl_text('مدیر فروش'),
+            format_rtl_text('انبارداری'),
+            format_rtl_text('حسابداری'),
+        ]
+        footer_positions = [
+            margin + 620,
+            margin + 420,
+            margin + 260,
+            margin + 120,
+            margin,
+        ]
         c.setFont(font_name, 12)
-        c.drawString(margin, footer_y, 'حسابداری')
-        c.drawString(margin + 120, footer_y, 'انبارداری')
-        c.drawString(margin + 260, footer_y, 'مدیر فروش')
-        c.drawString(margin + 420, footer_y, 'مدیریت کارخانه')
-        c.drawString(margin + 620, footer_y, 'تحویل گیرنده')
+        for label, pos_x in zip(footer_labels, footer_positions):
+            c.drawString(pos_x, footer_y, label)
 
-        ack_text = format_rtl_text('بار صحیح و سالم تحویل اینجانب')
-        ack_suffix = format_rtl_text('گردید')
+        ack_text = format_rtl_text('گردید')
+        ack_suffix = format_rtl_text('بار صحیح و سالم تحویل اینجانب')
         ack_blank_width = 160
         c.setFont(font_name, 12)
         ack_text_width = pdfmetrics.stringWidth(ack_text, font_name, 12)
