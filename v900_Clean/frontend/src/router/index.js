@@ -203,8 +203,8 @@ const routes = [
     component: Products
   },
   {
-    path: '/myapp/InvoicePage/',
-    name: 'InvoicePage',
+    path: '/myapp/invoicePage/',
+    name: 'invoicePage',
     component: InvoicePage
   },
 ]

@@ -2,7 +2,7 @@
 import homayounLogo from '@/assets/logo.png'
 
 export default {
-  name: 'stockTransferVoucher',
+  name: 'StockTransferVoucherModal',
   props: {
     show: {
       type: Boolean,

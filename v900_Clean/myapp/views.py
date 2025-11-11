@@ -824,11 +824,47 @@ def get_material_names(request):
         return JsonResponse({'error': 'Invalid request method'}, status=405)
 
 
+def get_our_company_data(request):
+    """
+    Handles GET requests to retrieve all OurCompany data from the OurCompany model.
+
+    This function queries the OurCompany model for all records and returns the
+    OurCompany data in a JSON response. If an error occurs during the process,
+    it returns an appropriate HTTP status code and error message.
+
+    Parameters:
+        request (HttpRequest): The HTTP request object.
+
+    Returns:
+        JsonResponse: A JSON response containing a list of all OurCompany data
+                      if the operation is successful, or an error message if an error occurs.
+    """
+    if request.method == 'GET':
+        try:
+            ourCompany = OurCompany.objects.all().values(
+                'company_name', 'national_id', 'register_no', 
+                'commercial_code', 'address', 'postal_code', 'phone'
+            ).first()
+
+            if not ourCompany:
+                return JsonResponse({'status': 'error', 'message': 'ourCompany not found'}, status=404)
+            # Extract the material names from the queryset
+
+            # Return the material names in a JSON response
+            return JsonResponse({'ourCompany_data': ourCompany}, status=200)
+
+        except Exception as e:
+            # Return a general error response
+            return JsonResponse({'error': str(e)}, status=500)
+    else:
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+
 def get_customer_names(request):
     """
-    Handles GET requests to retrieve all customer names from the RawMaterial model.
+    Handles GET requests to retrieve all customer names from the customer model.
 
-    This function queries the RawMaterial model for all records and returns the
+    This function queries the customer model for all records and returns the
     customer names in a JSON response. If an error occurs during the process,
     it returns an appropriate HTTP status code and error message.
 
@@ -836,7 +872,7 @@ def get_customer_names(request):
         request (HttpRequest): The HTTP request object.
 
     Returns:
-        JsonResponse: A JSON response containing a list of all material names
+        JsonResponse: A JSON response containing a list of all Customer names
                       if the operation is successful, or an error message if an error occurs.
     """
     if request.method == 'GET':
@@ -848,7 +884,45 @@ def get_customer_names(request):
             customer_names = [Customer.customer_name for Customer in Customers]
 
             # Return the material names in a JSON response
-            return JsonResponse({'customer_names': customer_names}, status=200)
+            return JsonResponse({'customer_data': customer_names}, status=200)
+
+        except Exception as e:
+            # Return a general error response
+            return JsonResponse({'error': str(e)}, status=500)
+    else:
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+
+def get_customer_data(request):
+    """
+    Handles GET requests to retrieve all customer data from the customer model.
+
+    This function queries the customer model for all records and returns the
+    customer data in a JSON response. If an error occurs during the process,
+    it returns an appropriate HTTP status code and error message.
+
+    Parameters:
+        request (HttpRequest): The HTTP request object.
+
+    Returns:
+        JsonResponse: A JSON response containing a list of all Customer data
+                      if the operation is successful, or an error message if an error occurs.
+    """
+    if request.method == 'GET':
+        try:
+            customer_name = request.GET.get("customer_name")
+            # Query the RawMaterial model for all records
+            customer = Customer.objects.filter(customer_name__iexact=customer_name).values(
+                'customer_name', 'national_id', 'register_number', 
+                'commercial_code', 'address', 'postal_code', 'phone'
+            ).first()
+
+            if not Customer:
+                return JsonResponse({'status': 'error', 'message': 'customer not found'}, status=404)
+            # Extract the material names from the queryset
+
+            # Return the material names in a JSON response
+            return JsonResponse({'customer_names': customer}, status=200)
 
         except Exception as e:
             # Return a general error response
@@ -3898,6 +3972,11 @@ def choose_report(request):
         return render(request, 'all_pages.html') 
 
 
+def invoice_page(request):
+    if request.method == 'GET':
+        return render(request, 'all_pages.html')
+
+
 @csrf_exempt
 def products_page(request):
     try:
@@ -4004,6 +4083,495 @@ def log_weight_adjustment(request):
 
 
 @csrf_exempt
+def get_invoice_data(request):
+    try:
+        if request.method != 'GET':
+            return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)      
+
+        # retrieve sale data ------------------------------------------------------------
+        sale_id = request.GET.get('sale_id')
+        if not sale_id:
+            return JsonResponse({'status': 'error', 'message': 'sale_id is required'}, status=400)
+
+        sale_queryset = shipment_queryset = Sales.objects.exclude(status='Cancelled').filter(
+            Q(id=sale_id)
+        ).values('invoice_number', 'invoice_date').order_by('-date') 
+
+        sale = sale_queryset.first()
+        
+        # retrieve shipment data ------------------------------------------------------------
+        shipment_queryset = Shipments.objects.exclude(status='Cancelled').filter(
+            Q(sales_id=sale_id) | Q(id=sale_id)
+        ).order_by('-date')
+
+        shipment = shipment_queryset.first()
+        if not shipment:
+            return JsonResponse({'status': 'error', 'message': 'shipment not found'}, status=404)
+
+        list_of_reels = (shipment.list_of_reels or '').replace(' ', '')
+        first_reel = list_of_reels.split(',')[0] if list_of_reels else None
+        if not first_reel:
+            return JsonResponse({'status': 'error', 'message': 'reel not found'}, status=404)
+
+        product_info = (
+            Products.objects.filter(reel_number=first_reel).values('id', 'grade', 'gsm', 'width').first()
+        )
+
+        product_description = f" {product_info.get('width', '')} عرض / {product_info.get('gsm', '')} گرماز / {product_info.get('grade', '')}".strip()
+        date_value = sale.get('invoice_date', '') or timezone.now()
+        formatted_date = format_shamsi_date(date_value)
+
+        # retrieve customer data ------------------------------------------------------------
+        customer_name = shipment.customer_name
+        if not customer_name:
+            return JsonResponse({'status': 'error', 'message': 'shipment.customer_name is required'}, status=400)
+
+        customer_queryset = Customer.objects.exclude(status='Cancelled').filter(
+            Q(customer_name=customer_name)
+        ).order_by('-date').values(
+            'customer_name', 'national_id', 'register_number', 
+            'commercial_code', 'address', 'postal_code', 'phone')
+
+        customer = customer_queryset.first()
+        if not customer:
+            return JsonResponse({'status': 'error', 'message': 'customer not found'}, status=404)     
+
+        # retrieve Our Company data ------------------------------------------------------------
+        our_company = OurCompany.objects.all().values(
+            'company_name', 'national_id', 'register_number', 
+            'commercial_code', 'address', 'postal_code', 'phone'
+        ).first()      
+
+        if not our_company:
+            return JsonResponse({'status': 'error', 'message': 'our company not found'}, status=404)
+        
+        # response payload ---------------------------------------------------------------------
+        response_payload = {
+            'values': {
+                'invoice_date': formatted_date,
+                'invoice_number': sale.get('invoice_number', ''),
+
+                'our_company_name': our_company.get('company_name', ''),
+                'our_company_national_id': our_company.get('national_id', ''),
+                'our_company_register_number': our_company.get('register_number', ''),
+                'our_company_commercial_code': our_company.get('commercial_code', ''),
+                'our_company_address': our_company.get('address', ''),
+                'our_company_postal_code': our_company.get('postal_code', ''),
+                'our_company_phone': our_company.get('phone', ''),
+
+                'customer_name': customer.get('customer_name', ''),
+                'customer_national_id': customer.get('national_id', ''),
+                'customer_register_number': customer.get('register_number', ''),
+                'customer_commercial_code': customer.get('commercial_code', ''),
+                'customer_address': customer.get('address', ''),
+                'customer_postal_code': customer.get('postal_code', ''),
+                'customer_phone': customer.get('phone', ''),
+
+                'product_id': product_info.get('id', ''),
+                'product_description': product_description,
+                'net_weight': shipment.net_weight,
+                'unit': shipment.unit,
+                'price_per_kg': shipment.price_per_kg,
+                'total_price': shipment.total_price,
+                'extra_cost': shipment.extra_cost,
+                'total_price_after_off': shipment.total_price - shipment.extra_cost,
+                'tax': (shipment.vat * shipment.total_price) / 100,
+                'total_price_after_tax': shipment.total_price + (shipment.vat * shipment.total_price) / 100,
+            },
+            'fields': [
+                'invoice_date',
+                'invoive_number',
+              
+                'our_company_name',
+                'our_company_national_id',
+                'our_company_register_no',
+                'our_company_commercial_code',
+                'our_company_address',
+                'our_company_postal_code',
+                'our_company_phone',
+
+                'customer_name',
+                'customer_national_id',
+                'customer_register_number',
+                'customer_commercial_code',
+                'customer_address',
+                'customer_postal_code',
+                'customer_phone',
+
+                'product_id',
+                'product_description',
+                'net_weight',
+                'unit',
+                'price_per_kg',
+                'total_price',
+                'extra_cost',
+                'total_price_after_off',
+                'tax',
+                'total_price_after_tax',
+            ],
+        }
+        return JsonResponse(response_payload, status=200)
+
+    except Exception as e:
+        print(e)
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@csrf_exempt
+def generate_invoice(request):
+    try:
+        if request.method != 'POST':
+            return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+        body = request.body.decode('utf-8').strip()
+        data = json.loads(body) if body else {}
+
+        sale_id = request.GET.get('sale_id') or request.GET.get('saleId') or data.get('sale_id')
+        
+        # Extract form data
+        invoice_number = data.get('invoice_number') or ''
+        invoice_date = data.get('invoice_date') or ''
+        
+        our_company_name = data.get('our_company_name') or ''
+        our_company_national_id = data.get('our_company_national_id') or ''
+        our_company_register_no = data.get('our_company_register_no') or ''
+        our_company_commercial_code = data.get('our_company_commercial_code') or ''
+        our_company_address = data.get('our_company_address') or ''
+        our_company_postal_code = data.get('our_company_postal_code') or ''
+        our_company_phone = data.get('our_company_phone') or ''
+        
+        customer_name = data.get('customer_name') or ''
+        customer_national_id = data.get('customer_national_id') or ''
+        customer_register_number = data.get('customer_register_number') or ''
+        customer_commercial_code = data.get('customer_commercial_code') or ''
+        customer_address = data.get('customer_address') or ''
+        customer_postal_code = data.get('customer_postal_code') or ''
+        customer_phone = data.get('customer_phone') or ''
+        
+        product_id = data.get('product_id') or ''
+        product_description = data.get('product_description') or ''
+        net_weight = data.get('net_weight') or ''
+        unit = data.get('unit') or ''
+        price_per_kg = data.get('price_per_kg') or ''
+        total_price = data.get('total_price') or 0
+        total_price_after_off = data.get('total_price_after_off') or 0
+        tax = data.get('tax') or 0
+        total_price_after_tax = data.get('total_price_after_tax') or 0
+
+        # Setup directories and file paths
+        base_dir = settings.BASE_DIR
+        output_dir = os.path.join(base_dir, 'invoice')
+        os.makedirs(output_dir, exist_ok=True)
+
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        identifier = sale_id if sale_id else 'general'
+        filename = f'invoice_{identifier}_{timestamp}.pdf'
+        file_path = os.path.join(output_dir, filename)
+
+        # Register fonts
+        font_name = 'Helvetica'
+        bnazanin_path = os.path.join(base_dir, 'frontend', 'src', 'assets', 'fonts', 'BNAZANIN.TTF')
+        dejavu_font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+        try:
+            if os.path.exists(bnazanin_path):
+                if 'BNAZANIN' not in pdfmetrics.getRegisteredFontNames():
+                    pdfmetrics.registerFont(TTFont('BNAZANIN', bnazanin_path))
+                font_name = 'BNAZANIN'
+            elif os.path.exists(dejavu_font_path):
+                if 'DejaVu' not in pdfmetrics.getRegisteredFontNames():
+                    pdfmetrics.registerFont(TTFont('DejaVu', dejavu_font_path))
+                font_name = 'DejaVu'
+        except Exception:
+            font_name = 'Helvetica'
+
+        # Create PDF
+        page_width, page_height = landscape(A4)
+        margin = 30
+        c = canvas.Canvas(file_path, pagesize=landscape(A4))
+
+        def normalize(value):
+            if value is None or value == '':
+                return '-'
+            return str(value)
+
+        def format_number(value):
+            try:
+                return f"{float(value):,.0f}"
+            except:
+                return normalize(value)
+
+        # Title
+        c.setFont(font_name, 16)
+        title_text = format_rtl_text('صورت حساب فروش کالا')
+        title_width = pdfmetrics.stringWidth(title_text, font_name, 16)
+        c.drawString((page_width - title_width) / 2, page_height - margin - 20, title_text)
+
+        # Start position for seller section
+        y_position = page_height - margin - 50
+
+        # Define full table width for consistency
+        full_table_width = page_width - 2*margin
+        
+        # Invoice number and date box (on the LEFT)
+        box_width = 130
+        box_x = margin
+        
+        # Seller header (on the RIGHT) - width to align right edge with other tables
+        seller_table_width = full_table_width - box_width
+        seller_table_data = [[format_rtl_text('مشخصات فروشنده')]]
+        seller_header = Table(seller_table_data, colWidths=[seller_table_width])
+        seller_header.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
+            ('FONTSIZE', (0, 0), (-1, -1), 12),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#d9d9d9')),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            # Move text to left by adding left padding equal to column 3 width (109)
+            ('LEFTPADDING', (0, 0), (-1, -1), -109),
+        ]))
+        w, seller_header_h = seller_header.wrap(0, 0)
+        # Position seller table so its right edge aligns with buyer/product tables
+        seller_table_x = page_width - margin - seller_table_width
+        seller_header.drawOn(c, seller_table_x, y_position - seller_header_h)
+        
+        y_position -= seller_header_h
+
+        # Seller info table - column widths must sum to seller_table_width
+        # Slightly reduce to account for borders
+        seller_col_widths = [105, 66, 109, 66, 197, 109]  # Sum = 652 (decreased rightmost by 4)
+        seller_info_data = [
+            [
+                format_rtl_text(normalize(our_company_register_no)),
+                format_rtl_text('شماره ثبت'),
+                format_rtl_text(normalize(our_company_commercial_code)),
+                format_rtl_text('کد اقتصادی'),
+                format_rtl_text(normalize(our_company_name)),
+                format_rtl_text('نام شخص حقیقی / حقوقی'),
+            ],
+            [
+                format_rtl_text(normalize(our_company_phone)),
+                format_rtl_text('تلفن/ایمیل'),
+                format_rtl_text(normalize(our_company_postal_code)),
+                format_rtl_text('کد پستی'),
+                format_rtl_text(normalize(our_company_national_id)),
+                format_rtl_text('شناسه ملی'),
+            ],
+            [
+                format_rtl_text(normalize(our_company_address)),
+                format_rtl_text('نشانی'),
+                '', '', '', '',
+            ],
+        ]
+        
+        seller_info = Table(seller_info_data, colWidths=seller_col_widths)
+        seller_info.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('SPAN', (0, 2), (5, 2)),
+            # Only column 2 (from right) = column index 3 and address row label have grey background
+            ('BACKGROUND', (3, 0), (3, 1), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (1, 2), (1, 2), colors.HexColor('#f0f0f0')),
+        ]))
+        w, seller_info_h = seller_info.wrap(0, 0)
+        seller_info.drawOn(c, seller_table_x, y_position - seller_info_h)
+        
+        # Draw invoice box (height = seller_header_h + seller_info_h to match full seller table)
+        box_height = seller_header_h + seller_info_h
+        c.setFont(font_name, 10)
+        c.rect(box_x, y_position - seller_info_h, box_width, box_height)
+        c.line(box_x, y_position - seller_info_h + box_height/2, box_x + box_width, y_position - seller_info_h + box_height/2)
+        
+        c.drawRightString(box_x + box_width - 5, y_position - seller_info_h + box_height/2 + 5, format_rtl_text(f'شماره: {normalize(invoice_number)}'))
+        c.drawRightString(box_x + box_width - 5, y_position - seller_info_h + 5, format_rtl_text(f'تاریخ: {normalize(invoice_date)}'))
+        
+        y_position -= seller_info_h
+
+        # Buyer section - full width
+        buyer_table_data = [[format_rtl_text('مشخصات خریدار')]]
+        buyer_header = Table(buyer_table_data, colWidths=[full_table_width])
+        buyer_header.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
+            ('FONTSIZE', (0, 0), (-1, -1), 12),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#d9d9d9')),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ]))
+        w, h = buyer_header.wrap(0, 0)
+        buyer_header.drawOn(c, margin, y_position - h)
+        y_position -= h
+
+        # Buyer info table - column widths must sum to full_table_width
+        # Slightly reduce to account for borders
+        buyer_col_widths = [128, 79, 131, 79, 235, 130]  # Sum = 782 (decreased rightmost by 3)
+        buyer_info_data = [
+            [
+                format_rtl_text(normalize(customer_register_number)),
+                format_rtl_text('شماره ثبت'),
+                format_rtl_text(normalize(customer_commercial_code)),
+                format_rtl_text('کد اقتصادی'),
+                format_rtl_text(normalize(customer_name)),
+                format_rtl_text('نام شخص حقیقی / حقوقی'),
+            ],
+            [
+                format_rtl_text(normalize(customer_phone)),
+                format_rtl_text('تلفن/ایمیل'),
+                format_rtl_text(normalize(customer_postal_code)),
+                format_rtl_text('کد پستی'),
+                format_rtl_text(normalize(customer_national_id)),
+                format_rtl_text('شناسه ملی'),
+            ],
+            [
+                format_rtl_text(normalize(customer_address)),
+                format_rtl_text('نشانی'),
+                '', '', '', '',
+            ],
+        ]
+        
+        buyer_info = Table(buyer_info_data, colWidths=buyer_col_widths)
+        buyer_info.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('SPAN', (0, 2), (5, 2)),
+            # Only column 2 (from right) = column index 3 and address row label have grey background
+            ('BACKGROUND', (3, 0), (3, 1), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (1, 2), (1, 2), colors.HexColor('#f0f0f0')),
+        ]))
+        w, h = buyer_info.wrap(0, 0)
+        buyer_info.drawOn(c, margin, y_position - h)
+        y_position -= h
+
+        # Product section - full width
+        product_header_data = [[format_rtl_text('مشخصات کالا')]]
+        product_header = Table(product_header_data, colWidths=[full_table_width])
+        product_header.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
+            ('FONTSIZE', (0, 0), (-1, -1), 12),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#d9d9d9')),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ]))
+        w, h = product_header.wrap(0, 0)
+        product_header.drawOn(c, margin, y_position - h)
+        y_position -= h
+
+        # Product table - column widths must sum to full_table_width
+        # Slightly reduce to account for borders
+        product_col_widths = [71.5, 71.5, 71.5, 71.5, 71.5, 71.5, 43.5, 43.5, 178, 57.5, 30.5]  # Sum = 784 (decreased rightmost by 1)
+        product_table_data = [
+            [
+                format_rtl_text('جمع مالیات و مبلغ کل'),
+                format_rtl_text('جمع مالیات و عوارض ۱۰٪'),
+                format_rtl_text('جمع مبلغ کل'),
+                format_rtl_text('مبلغ کل پس از تخفیف'),
+                format_rtl_text('مبلغ کل'),
+                format_rtl_text('قیمت واحد'),
+                format_rtl_text('واحد'),
+                format_rtl_text('مقدار'),
+                format_rtl_text('شرح کالا یا خدمت'),
+                format_rtl_text('کد کالا'),
+                format_rtl_text('ردیف'),
+            ],
+            [
+                format_rtl_text(format_number(total_price_after_tax)),
+                format_rtl_text(format_number(tax)),
+                format_rtl_text(format_number(total_price_after_off)),
+                format_rtl_text(format_number(total_price_after_off)),
+                format_rtl_text(format_number(total_price)),
+                format_rtl_text(format_number(price_per_kg)),
+                format_rtl_text(normalize(unit)),
+                format_rtl_text(format_number(net_weight)),
+                format_rtl_text(normalize(product_description)),
+                format_rtl_text(normalize(product_id)),
+                format_rtl_text('1'),
+            ],
+            ['', '', '', '', '', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', '', '', '', ''],
+            [
+                format_rtl_text(format_number(total_price_after_tax)),
+                format_rtl_text(format_number(tax)),
+                format_rtl_text(format_number(total_price_after_off)),
+                format_rtl_text(format_number(total_price_after_off)),
+                format_rtl_text(format_number(total_price)),
+                '',
+                '',
+                '',
+                format_rtl_text('جمع کل'),
+                '',
+                '',
+            ],
+        ]
+        
+        product_table = Table(product_table_data, colWidths=product_col_widths)
+        product_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#d9d9d9')),
+            ('ALIGN', (8, 1), (8, 1), 'RIGHT'),
+            ('SPAN', (8, 4), (10, 4)),
+            ('ALIGN', (8, 4), (10, 4), 'RIGHT'),
+        ]))
+        w, h = product_table.wrap(0, 0)
+        product_table.drawOn(c, margin, y_position - h)
+        y_position -= h
+
+        # Payment and signature section - side by side (no gap)
+        c.setFont(font_name, 10)
+        
+        # Calculate box widths to fill the entire width
+        box_width_each = full_table_width / 2
+        box_height = 70
+        
+        # Payment info box on the left
+        payment_box_x = margin
+        payment_box_y = y_position - box_height
+        
+        # Draw payment box border
+        c.rect(payment_box_x, payment_box_y, box_width_each, box_height)
+        
+        # Payment text inside the box
+        payment_y = payment_box_y + box_height - 20
+        c.drawRightString(payment_box_x + box_width_each - 10, payment_y, format_rtl_text(f'مبلغ قابل پرداخت (به عدد): {format_number(total_price_after_tax)}'))
+        payment_y -= 20
+        c.drawRightString(payment_box_x + box_width_each - 10, payment_y, format_rtl_text('مبلغ قابل پرداخت (به حروف): ........................................................'))
+        
+        # Signature box on the right (single merged box, no divider)
+        sig_box_x = margin + box_width_each
+        sig_box_y = payment_box_y
+        
+        # Draw single signature box (merged, no internal divider)
+        c.rect(sig_box_x, sig_box_y, box_width_each, box_height)
+        
+        # Signature labels side by side - closer together
+        c.drawString(sig_box_x + 40, sig_box_y + box_height/2 - 5, format_rtl_text('مهر و امضاء فروشنده'))
+        c.drawString(sig_box_x + box_width_each - 120, sig_box_y + box_height/2 - 5, format_rtl_text('مهر و امضاء خریدار'))
+
+        c.showPage()
+        c.save()
+
+        return JsonResponse({
+            'status': 'success',
+            'pdf_filename': filename,
+            'pdf_path': file_path,
+        }, status=200)
+
+    except Exception as e:
+        print(e)
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@csrf_exempt
 def get_stock_transfer_voucher_data(request):
     try:
         if request.method != 'GET':
@@ -4036,8 +4604,8 @@ def get_stock_transfer_voucher_data(request):
             or ''
         )
 
-        comment = f"{shipment.license_number or ''} {driver_name}".strip()
-        date_value = shipment.stock_transfer_voucher_date or shipment.date
+        comment = f"{shipment.license_number or ''} / {driver_name}".strip()
+        date_value = shipment.stock_transfer_voucher_date or timezone.now()
         formatted_date = format_shamsi_date(date_value)
 
         response_payload = {

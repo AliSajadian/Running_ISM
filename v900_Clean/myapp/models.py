@@ -7,6 +7,7 @@ class OurCompany(models.Model):
     date = models.DateTimeField(default=timezone.now, blank=True)
     status = models.CharField(max_length=255, blank=True, default='Active')
     company_name = models.CharField(max_length=255, null=False)
+    national_id = models.CharField(max_length=255, blank=True, null=True)
     register_number = models.CharField(max_length=255, blank=True, null=True)
     commercial_code = models.CharField(max_length=255, blank=True, null=True)
     address = models.TextField(blank=True)
@@ -28,6 +29,7 @@ class OurCompany(models.Model):
 class Customer(models.Model):
     date = models.DateTimeField(default=timezone.now, blank=True)
     status = models.CharField(max_length=255, blank=True, default='Active')
+    national_id = models.CharField(max_length=255, blank=True, null=True)
     register_number = models.CharField(max_length=255, blank=True, null=True)
     commercial_code = models.CharField(max_length=255, blank=True, null=True)
     customer_name = models.CharField(max_length=255, null=False)
@@ -247,6 +249,7 @@ class Shipments(models.Model):
     invoice_status = models.CharField(max_length=255, choices=[('NA', 'NA'), ('Sent', 'Sent'), ('Received', 'Received')], null=True)
     payment_status = models.CharField(max_length=255, choices=[('Terms', 'Terms'), ('Paid', 'Paid')], null=True)
 
+    invoice_date = models.DateTimeField(blank=True, null=True)
     stock_receipt_voucher_number = models.CharField(max_length=255, null=True)
     stock_receipt_voucher_date = models.DateTimeField(blank=True, null=True)
     stock_transfer_voucher_number = models.CharField(max_length=255, null=True)
@@ -489,6 +492,7 @@ class Sales(models.Model):
     profile_name = models.CharField(max_length=255, null=True)
     invoice_status = models.CharField(max_length=255, choices=[('Sent', 'Sent'), ('NA', 'NA')], null=True)
     invoice_number = models.CharField(max_length=255, null=True)
+    invoice_date = models.DateTimeField(blank=True, null=True)
 
     payment_details = models.CharField(max_length=255, null=True)
     document_info = models.TextField(null=True)

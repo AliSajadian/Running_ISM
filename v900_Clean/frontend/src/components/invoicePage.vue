@@ -4,9 +4,8 @@ import Card from '@/components/Card'
 import modal from "@/components/Modal.vue";
 import Alert from "@/components/Alert.vue";
 import Lic_numer from "@/components/lic_numer.vue";
-import {jsPDF} from "jspdf";
-import html2canvas from 'html2canvas';
-import StockTransferVoucher from '@/components/stockTransferVoucher.vue';
+import StockTransferVoucherModal from '@/components/stockTransferVoucherModal.vue';
+import InvoiceModal from '@/components/invoiceModal.vue';
 
 export default {
   name: "invoicePage", 
@@ -15,7 +14,8 @@ export default {
     Card,
     modal,
     Alert,
-    StockTransferVoucher
+    InvoiceModal,
+    StockTransferVoucherModal
   },
   data() {
     return {
@@ -42,13 +42,14 @@ export default {
       selectedRowIndex: null,
       alerts: [],
       alertSocket: null,
+      showInvoiceModal: false,
+      invoiceSaleId: null,
       showStockTransferModal: false,
       stockTransferSaleId: null,
     }
   },
   mounted() {
     initFlowbite();
-    // this.load_data()
     this.fetchSalesPage();
     // Initialize WebSocket connection
     this.alertSocket = new WebSocket('ws://' + window.location.host + '/ws/alert/');
@@ -110,6 +111,7 @@ export default {
         this.selectedSale = null;
         this.selectedRowIndex = null;
         this.stockTransferSaleId = null;
+        this.invoiceSaleId = null;
       } else if (
         this.selectedRowIndex === null ||
         this.selectedRowIndex >= values.length
@@ -149,6 +151,7 @@ export default {
       this.selectedRowIndex = index;
       this.selectedSale = record;
       this.stockTransferSaleId = record?.id ?? null;
+      this.invoiceSaleId = record?.id ?? null;
     },
 
     handleStockTransferVoucher() {
@@ -164,10 +167,17 @@ export default {
     },
 
     handleSalesInvoice() {
-      if (!this.selectedSale) return;
-      console.log('sales_invoice selected sale:', this.selectedSale);
-      // TODO: replace with actual workflow
+      if (!this.selectedSale || !this.selectedSale.id) {
+        return;
+      }
+      this.invoiceSaleId = this.selectedSale.id;
+      this.showInvoiceModal = true;
     },
+
+    closeInvoice() {
+      this.showInvoiceModal = false;
+    },
+
     sortTable(tableName, column) {
       const table = this.forms[tableName];
       if (!table || !Array.isArray(table.data)) {
@@ -320,7 +330,12 @@ export default {
         </div>
       </template>
     </form>
-    <stock-transfer-voucher
+    <InvoiceModal
+      :show="showInvoiceModal"
+      :sale-id="invoiceSaleId"
+      @close="closeInvoice"
+    />
+    <StockTransferVoucherModal
       :show="showStockTransferModal"
       :sale-id="stockTransferSaleId"
       @close="closeStockTransferVoucher"
