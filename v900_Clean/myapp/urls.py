@@ -46,17 +46,20 @@ urlpatterns = [
     path("api/reportShipment", report_shipment),
     path("api/reportSales", report_Sales),
     path("api/getSalesData", get_sales_invoice_data),
+    
     path("api/getInvoiceData", get_invoice_data),
     path("api/generateInvoice", generate_invoice),
     path("api/getStockTransferVoucherData", get_stock_transfer_voucher_data),
     path("api/generateStockTransferVoucher", generate_stock_transfer_voucher),
+
     path("api/reportPurchases", report_Purchases),
     path("api/reportRawMaterial", report_RawMaterial),
     path("api/reportProducts", report_Products),
     path("api/reportConsumption", report_Consumption),
     path("api/reportAlert", report_Alert),
     path('api/logWeightAdjustment', log_weight_adjustment, name='log_weight_adjustment'),
-    path("ProductsPage/", products_page),
+    path("api/getFactoryMapData", get_factory_map_data),
+    path("api/getWarehouseInventory", get_warehouse_inventory),
 
     # Following paths are related to Pages:
 
@@ -91,4 +94,6 @@ urlpatterns = [
     path("consumptionReport/", choose_report),
     path("alertsReport/", choose_report),
     path("invoicePage/", invoice_page),
+    path("ProductsPage/", products_page),
+    path("FactoryMap/", factory_map_page),
 ]

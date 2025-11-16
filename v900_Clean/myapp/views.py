@@ -3971,6 +3971,8 @@ def choose_report(request):
     if request.method == 'GET':
         return render(request, 'all_pages.html') 
 
+def factory_map_page(request):
+    return render(request, '_base_vue.html')
 
 def invoice_page(request):
     if request.method == 'GET':
@@ -4828,4 +4830,39 @@ def generate_stock_transfer_voucher(request):
         print(e)
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
         
-        
+
+@csrf_exempt
+def get_factory_map_data(request):
+    try:
+        if request.method != 'GET':
+            return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+        shipments = Shipments.objects.exclude(status='Cancelled').filter(
+            Q(status='Registered') | Q(status='LoadingUnloading') | Q(status='LoadedUnloaded')
+        ).values('id', 'shipment_type', 'status', 'location', 'license_number', 'customer_name', 
+                'supplier_name', 'unload_location')
+
+        return JsonResponse({'status': 'success', 'data': list(shipments)}, status=200)
+    except Exception as e:
+        print(e)
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@csrf_exempt
+def get_warehouse_inventory(request):
+    try:
+        if request.method != 'GET':
+            return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+        inventory_data = {
+            'Anbar_PAK': Anbar_PAK.objects.filter(status='In-stock').count(),
+            'Anbar_Sangin': Anbar_Sangin.objects.filter(status='In-stock').count(),
+            'Anbar_Khamir_Kordan': Anbar_Khamir_Kordan.objects.filter(status='In-stock').count(),
+            'Anbar_Khamir_Ghadim': Anbar_Khamir_Ghadim.objects.filter(status='In-stock').count(),
+            'Anbar_Koochak': Anbar_Koochak.objects.filter(status='In-stock').count(),
+            'Anbar_Salon_Tolid': Anbar_Salon_Tolid.objects.filter(status='In-stock').count(),
+            'Anbar_Parvandeh': Anbar_Parvandeh.objects.filter(status='In-stock').count(),
+        }
+        return JsonResponse({'status': 'success', 'data': inventory_data}, status=200)
+    except Exception as e:
+        print(e)
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)

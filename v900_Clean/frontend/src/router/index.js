@@ -32,6 +32,7 @@ import alertsReport from "@/components/admin/reports/alertsReport.vue";
 import AllPages from "@/components/admin/AllPages.vue";
 import Products from "@/components/admin/Products.vue";
 import InvoicePage from "@/components/invoicePage.vue";
+import FactoryMap from "@/components/FactoryMap.vue";
 
 const routes = [
   {
@@ -206,6 +207,11 @@ const routes = [
     path: '/myapp/invoicePage/',
     name: 'invoicePage',
     component: InvoicePage
+  },
+  {
+    path: '/myapp/FactoryMap/',
+    name: 'FactoryMap',
+    component: FactoryMap
   },
 ]
 

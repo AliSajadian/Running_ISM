@@ -216,13 +216,20 @@ export default {
         <Alert :msg="alert.message"></Alert>
       </template>
     </div>
-    <div class="flex justify-end mb-4">
+    <div class="flex justify-between mb-4">
       <router-link
         to="/myapp/"
         type="button"
         class="block w-auto rounded-lg bg-gray-500 px-5 text-center text-sm font-medium text-white py-2.5 hover:bg-gray-600 focus:outline-none focus:ring-4 focus:ring-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-800"
       >
-        ← بازگشت به صفحه ی اصلی
+        ← بازگشت به صفحه اصلی
+      </router-link>
+      <router-link
+        to="/myapp/"
+        type="button"
+        class="block w-auto rounded-lg bg-gray-500 px-5 text-center text-sm font-medium text-white py-2.5 hover:bg-gray-600 focus:outline-none focus:ring-4 focus:ring-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-800"
+      >
+        بازگشت به صفحه اصلی ←
       </router-link>
     </div>    
     <form class="mt-5 flex flex-col items-center gap-4">

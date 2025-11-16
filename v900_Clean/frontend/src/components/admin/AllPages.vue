@@ -117,6 +117,10 @@ export default {
           path: '/myapp/InvoicePage/',
           name: 'InvoicePage',
         },
+        {
+          path: '/myapp/FactoryMap/',
+          name: 'FactoryMap',
+        },
       ]
     }
   }
