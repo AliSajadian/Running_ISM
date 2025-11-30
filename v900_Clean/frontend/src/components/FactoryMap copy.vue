@@ -13,10 +13,10 @@ export default {
       lastUpdateTime: null,
       // Location coordinates mapping (matching SVG positions)
       locationCoordinates: {
-        'Entrance1': { x: 320, y: 760 },  // Left entrance - moved under W1
+        'Entrance': { x: 320, y: 760 },  // Left entrance - moved under W1
         'Weight_Station_1': { x: 320, y: 580 },  // Moved up vertically
         'Weight_Station_2': { x: 1140, y: 410 },
-        'Entrance2': { x: 1070, y: 760 },  // Right entrance - moved to right
+        'Exit': { x: 1070, y: 760 },  // Right entrance - moved to right
         'Anbar_PAK': { x: 1410, y: 620 },
         'Anbar_Khamir_Kordan': { x: 1275, y: 330 },
         'Anbar_Khamir_Ghadim': { x: 805, y: 150 },
@@ -31,11 +31,11 @@ export default {
       },
       truckStopPositions: {
         'Entrance': { x: 320, y: 760 },  // Left entrance - moved under W1
-        'Weight_Station_1': { x: 320, y: 700 },
+        'Weight_Station_1': { x: 320, y: 610 },
         'Anbar_Salon_Tolid': { x: 320, y: 237 },
-        'Anbar_Akhal': { x: 120, y: 830 },
-        'Anbar_PAK': { x: 1410, y: 820 },
-        'Anbar_Khamir_Kordan': { x: 1140, y: 330 },
+        'Anbar_Akhal': { x: 200, y: 870 },
+        'Anbar_PAK': { x: 1410, y: 620 },
+        'Anbar_Khamir_Kordan': { x: 1275, y: 330 },
         'Anbar_Khamir_Ghadim': { x: 805, y: 150 },
         'Anbar_Parvandeh': { x: 335, y: 94 },
         'Anbar_Koochak': { x: 335, y: 170 },
@@ -56,10 +56,7 @@ export default {
         'Anbar_Koochak': { x: 335, y: 125 },
         'Anbar_Salon_Tolid': { x: 140, y: 20 },
         'Anbar_Akhal': { x: 200, y: 870 },
-      },
-      truckAnimations: {}, // Store animated positions { truckId: { currentX, currentY, rotation, animating } }
-      animationFrames: {},  // Store RAF IDs for cleanup
-
+      }
     }
   },
   computed: {
@@ -120,12 +117,6 @@ export default {
   beforeUnmount() {
     console.log('FactoryMap component unmounting')
     this.stopPolling()
-  
-    // Cancel all animations
-    Object.values(this.animationFrames).forEach(frameId => {
-      cancelAnimationFrame(frameId);
-  });
-
   },
   methods: {
     /**
@@ -396,329 +387,7 @@ export default {
     formatWarehouseName(name) {
       return name.replace('Anbar_', '').replace(/_/g, ' ')
     },
-
-    /**
-     * Animate truck along a path with waypoints
-     */
-    animateTruckAlongPath(shipment, waypoints) {
-      if (!waypoints || waypoints.length < 2) return;
-      
-      const truckId = shipment.id;
-      let currentWaypointIndex = 0;
-      
-      const animateSegment = () => {
-        if (currentWaypointIndex >= waypoints.length - 1) {
-          // Animation complete
-          if (this.truckAnimations[truckId]) {
-            this.truckAnimations[truckId].animating = false;
-          }
-          return;
-        }
-        
-        const start = waypoints[currentWaypointIndex];
-        const end = waypoints[currentWaypointIndex + 1];
-        const duration = 3000; // 3 seconds per segment
-        const startTime = Date.now();
-        
-        const animate = () => {
-          const elapsed = Date.now() - startTime;
-          const progress = Math.min(elapsed / duration, 1);
-          
-          // Easing function
-          const easeProgress = progress < 0.5 
-            ? 2 * progress * progress 
-            : -1 + (4 - 2 * progress) * progress;
-          
-          const currentX = start.x + (end.x - start.x) * easeProgress;
-          const currentY = start.y + (end.y - start.y) * easeProgress;
-          const rotation = Math.atan2(end.y - start.y, end.x - start.x) * (180 / Math.PI);
-          
-          // Update animation state
-          // this.$set(this.truckAnimations, truckId, {
-          this.truckAnimations[truckId] = {
-            currentX,
-            currentY,
-            rotation,
-            animating: true
-          };
-          
-          if (progress < 1) {
-            this.animationFrames[truckId] = requestAnimationFrame(animate);
-          } else {
-            // Move to next segment after small pause
-            currentWaypointIndex++;
-            setTimeout(animateSegment, 300);
-          }
-        };
-        
-        animate();
-      };
-      
-      animateSegment();
-    },  
-
-    /**
-     * Get waypoints path based on shipment status
-     */
-    getWaypointsForShipment(shipment, currentPos = null) {
-      const status = shipment.status;
-      const type = shipment.shipment_type;
-      const unload_location = shipment.unload_location;
-
-      switch(status) {
-        case 'Registered':
-          return [
-            currentPos || { x: 320, y: 760 },  // Entrance
-            { x: 320, y: 760 },  // Mid 670
-            { x: 320, y: 580 }   // W1
-          ];
-        case'LoadingUnloading':
-          if (type === 'Incoming') {
-            switch(unload_location) {
-              case 'Anbar_Salon_Tolid':
-              return [
-                { x: 320, y: 580 },  // Mid 670
-                { x: 320, y: 260 }   // W1
-              ];
-            case 'Anbar_Sangin':
-              return [
-                { x: 320, y: 580 },   // w1
-                { x: 320, y: 310 },   // turn right towards anbar sangin
-                { x: 800, y: 310 },   // reach anbar sangin
-              ];
-            case 'Anbar_Koochak':
-              return [
-                { x: 320, y: 580 },  // W1
-                { x: 320, y: 260 },  // turn right towards anbar koochak
-                { x: 360, y: 260 },  // turn left towards anbar koochak
-                { x: 360, y: 150 },  // Anbar koochak
-              ];
-            case'Anbar_Parvandeh':
-              return [
-                { x: 320, y: 580 },  // W1
-                { x: 320, y: 260 },  // turn right towards anbar Parvandeh
-                { x: 360, y: 260 },  // turn left towards anbar Parvandeh
-                { x: 360, y: 120 },  // Anbar Parvandeh            
-              ];
-            case 'Anbar_Mohavath_Homayoun':
-              return [
-                { x: 320, y: 580 },  // W1
-                { x: 320, y: 260 },  // turn right towards anbar Mohavath_Homayoun
-                { x: 460, y: 260 },  // turn left towards anbar Mohavath_Homayoun
-                { x: 460, y: 200 },  // Anbar Mohavath_Homayoun            
-              ];
-            case 'Anbar_Khamir_Ghadim':
-              return [
-                { x: 320, y: 580 },  // W1
-                { x: 320, y: 260 },  // turn right towards anbar Mohavath_Homayoun
-                { x: 600, y: 260 },  // turn left towards anbar Mohavath_Homayoun
-                { x: 600, y: 150 },  // Anbar Mohavath_Homayoun            
-                ];
-            case 'Anbar_Muhvateh_Kardan':
-              return [
-                { x: 320, y: 580 },  // W1
-                { x: 320, y: 260 },  // turn right towards anbar Anbar_Khamir_Kordan
-                { x: 1100, y: 280 },  // turn right towards anbar enterance 2
-                { x: 1100, y: 180 },  // move backward to Anbar_Khamir_Kordan            
-              ];
-            case 'Anbar_Khamir_Kordan':
-              return [
-                { x: 320, y: 580 },  // W1
-                { x: 320, y: 260 },  // turn right towards anbar Anbar_Khamir_Kordan
-                { x: 1140, y: 280 },  // turn right towards anbar enterance 2
-                { x: 1140, y: 180 },  // move backward to Anbar_Khamir_Kordan            
-              ];
-            case 'Anbar_PAK':
-              return [
-                { x: 320, y: 580 },  // W1
-                { x: 320, y: 820 },   // towards out of factory
-                { x: 1320, y: 820 },  // Start from current or W1
-              ];
-            case 'Anbar_Akhal':
-              return [
-                { x: 320, y: 580 },  // W1
-                { x: 320, y: 830 },  // towards out of factory
-                { x: 120, y: 830 },  // Start from current or W1
-              ];
-            default: 
-              return [
-                { x: 320, y: 580 },  // W1
-              ]
-            }
-          }
-          else if (type === 'Outgoing') {
-            return [
-              currentPos || { x: 320, y: 580 },  // Start from current or W1
-              { x: 320, y: 580 },   // W1
-              { x: 320, y: 260 }   // Anbar salon tolid
-            ];
-          }
-        case 'LoadedUnloaded':
-          //const start = currentPos || this.truckStopPositions[shipment.unload_location] || { x: 510, y: 610 };
-          // For incoming trucks, follow the GREEN path with proper waypoints
-          if (type === 'Incoming') {
-            switch(unload_location) {
-              case 'Anbar_Salon_Tolid':
-                return [
-                  { x: 320, y: 260 },     // W1
-                  { x: 1140, y: 260 },    // Before turning right
-                  { x: 1140, y: 410 }     // Turn right towards W2
-                ];
-              case 'Anbar_Sangin':
-                return [
-                  { x: 800, y: 310 },     // reach anbar sangin
-                  { x: 1140, y: 310 },    // Before turning right
-                  { x: 1140, y: 410 }     // Turn right towards W2
-                ];
-              case 'Anbar_Koochak':
-                return [
-                  { x: 360, y: 150 },     // Anbar koochak
-                  { x: 360, y: 260 },     // turn left 
-                  { x: 1140, y: 260 },    // Before turning right
-                  { x: 1140, y: 410 }     // Turn right towards W2
-                ];
-              case'Anbar_Parvandeh':
-                return [
-                  { x: 360, y: 120 },     // Anbar Parvandeh            
-                  { x: 360, y: 260 },     // turn left 
-                  { x: 1140, y: 260 },    // Before turning right
-                  { x: 1140, y: 410 }     // Turn right towards W2
-                ];
-              case 'Anbar_Mohavath_Homayoun':
-                return [
-                  { x: 460, y: 200 },  // Anbar Mohavath_Homayoun            
-                  { x: 460, y: 260 },  // turn left
-                  { x: 1140, y: 260 },    // Before turning right
-                  { x: 1140, y: 410 }     // Turn right towards W2
-                ];
-              case 'Anbar_Khamir_Ghadim':
-                return [
-                  { x: 600, y: 150 },  // Anbar Mohavath_Homayoun            
-                  { x: 600, y: 260 },  // turn left 
-                  { x: 1140, y: 260 },    // Before turning right
-                  { x: 1140, y: 410 }     // Turn right towards W2
-                ];
-              case 'Anbar_Muhvateh_Kardan':
-                return [
-                  { x: 1100, y: 180 },  // move backward to Anbar_Khamir_Kordan     
-                  { x: 1140, y: 260 },    // Before turning right
-                  { x: 1140, y: 410 }     // Turn right towards W2
-                ];
-              case 'Anbar_Khamir_Kordan':
-                return [
-                  { x: 1140, y: 180 },  //  Anbar_Khamir_Kordan     
-                  { x: 1140, y: 410 }     //  W2
-                ];
-              case 'Anbar_PAK':
-                return [
-                  { x: 1320, y: 820 },   // towards out of factory
-                  { x: 1020, y: 820 },   // turn right
-                  { x: 1140, y: 410 }     //  W2
-                ];
-              case 'Anbar_Akhal':
-                return [
-                  { x: 120, y: 830 },  // Start from current or W1
-                  { x: 1020, y: 820 },   // turn right
-                  { x: 1080, y: 410 }     //  W2
-
-                ];
-              default: 
-                return [
-                  { x: 1140, y: 410 },  // W2
-                ]
-            }
-          }
-          else if (type === 'Outgoing') {
-            return [
-              start,                  // From Anbar Salon Tolid
-              { x: 280, y: 280 },     // Beside building
-              { x: 1140, y: 280 },    // Horizontal across top
-              { x: 1140, y: 410 },    // Down to W2
-            ];
-          }
-        case 'Office':
-          return [
-            start,
-            { x: 1140, y: 410 },
-            { x: 1080, y: 724 },
-          ];
-        case 'Delivered':
-          return [
-            currentPos || { x: 1224, y: 724 },  // Office
-            { x: 1070, y: 760 },  // Exit
-            { x: 1070, y: 820 },   // Street
-            { x: 0, y: 820 }   // Street
-          ];
-        default:
-            return [];
-      }
-    },  
-
-    /**
-     * Get animated truck position (or default to end position)
-     */
-    getAnimatedTruckPosition(shipment) {
-      const animation = this.truckAnimations[shipment.id];
-      if (animation && animation.animating) {
-        return { x: animation.currentX, y: animation.currentY };
-      }
-      return this.getTruckEndPosition(shipment);
-    },
-  
-    /**
-     * Get animated truck rotation
-     */
-    getAnimatedTruckRotation(shipment) {
-      const animation = this.truckAnimations[shipment.id];
-      if (animation && animation.animating) {
-        return animation.rotation;
-      }
-      return this.getTruckRotation(shipment);
-    }
   },
-  watch: {
-    activeShipments: {
-      handler(newShipments, oldShipments) {
-        newShipments.forEach(shipment => {
-          // Check if truck status changed or is new
-          const oldShipment = oldShipments?.find(s => s.id === shipment.id);
-          
-          if (!oldShipment || oldShipment.status !== shipment.status) {
-            // Get current animation state (if any)
-            const currentAnimation = this.truckAnimations[shipment.id];
-            const currentPos = currentAnimation ? 
-              { x: currentAnimation.currentX, y: currentAnimation.currentY } : 
-              null;  
-
-            // Status changed - start animation
-            const waypoints = this.getWaypointsForShipment(shipment);
-
-            if (waypoints.length > 0) {
-              // Cancel any existing animation
-              if (this.animationFrames[shipment.id]) {
-                cancelAnimationFrame(this.animationFrames[shipment.id]);
-                // delete this.animationFrames[shipment.id];
-              }
-              // Initialize position at start
-              // this.$set(this.truckAnimations, shipment.id, {
-              this.truckAnimations[shipment.id] = {
-                currentX: waypoints[0].x,
-                currentY: waypoints[0].y,
-                rotation: currentAnimation?.rotation || 0,
-                animating: false
-              };
-              
-              // Start animation after small delay
-              setTimeout(() => {
-                this.animateTruckAlongPath(shipment, waypoints);
-              }, 100);
-            }
-          }
-        });
-      },
-      deep: true
-    }
-  }
 }
 
 </script>
@@ -750,7 +419,7 @@ export default {
         <rect x="40" y="10" width="1340" height="773" fill="none" stroke="#000" stroke-width="3" />
         
         <!-- Street area (moved up 42px, sticks to factory bottom) -->
-        <rect x="0" y="783" width="1700" height="60" fill="#999" stroke="#666" stroke-width="2" />
+        <rect x="0" y="783" width="1700" height="60" fill="#666" stroke="#666" stroke-width="2" />
         <text x="850" y="818" text-anchor="middle" font-size="16" font-weight="bold" fill="#fff">STREET</text>
         
         <!-- Anbar Salon Tolid (moved up 10px) -->
@@ -862,7 +531,6 @@ export default {
           </g>
         </g>
 
-
         <!-- Weight Station 1 (Moved upward) -->
         <g class="weight-station-1">
           <rect x="290" y="490" width="60" height="180" fill="#fff" stroke="#000" stroke-width="2" />
@@ -923,7 +591,7 @@ export default {
           <!-- Second vertical divider (right-center, narrower, moved down a bit) -->
           <ellipse cx="950" cy="520" rx="8" ry="175" fill="#c8e6c9" stroke="#4caf50" stroke-width="2" />
           <!-- Third divider (right upper, height increased by 1/3: 87.5 * 1.333 = 116.7, extended from bottom) -->
-          <ellipse cx="950" cy="117.5" rx="8" ry="106.7" fill="#c8e6c9" stroke="#4caf50" stroke-width="2" />
+          <ellipse cx="950" cy="136.7" rx="8" ry="116.7" fill="#c8e6c9" stroke="#4caf50" stroke-width="2" />
         </g>
         
         <!-- Workflow Path (CLEAN - NO ARROWS - AVOIDING ALL BUILDINGS) -->
@@ -1209,209 +877,119 @@ export default {
             v-for="(shipment, index) in activeShipments" 
             :key="shipment.id"
             :style="{ 
-              transform: `translate(${getAnimatedTruckPosition(shipment).x}px, ${getAnimatedTruckPosition(shipment).y}px)`,
-              // transform: `translate(${getTruckPosition(shipment).x}px, ${getTruckPosition(shipment).y}px)`,
-              // transition: 'transform 3s ease-in-out' // #######################################################################
+              transform: `translate(${getTruckPosition(shipment).x}px, ${getTruckPosition(shipment).y}px)`,
+              transition: 'transform 3s ease-in-out'
             }"
             class="truck-animated"
           >
-            <!-- Professional 3D Flatbed Truck (REVERSED - Cab at back, trailer at front) -->
-            <g :transform="`translate(${-90 - (index % 3) * 20}, ${-70 - Math.floor(index / 3) * 70}) rotate(${getAnimatedTruckRotation(shipment)} 90 70)`">
+            <!-- Professional 2D Flat Truck (Clean Simple Design with Rotation) -->
+            <g :transform="`translate(${-75 - (index % 3) * 20}, ${-65 - Math.floor(index / 3) * 70}) rotate(${getTruckRotation(shipment)} 75 65)`">
               
-              <!-- Motion trail effect (if truck is moving) - now at back -->
+              <!-- Motion trail effect (if truck is moving) -->
               <g v-if="shipment.status === 'Registered' || shipment.status === 'LoadedUnloaded'" class="motion-trail" opacity="0.4">
-                <ellipse cx="135" cy="95" rx="30" ry="8" :fill="shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3'" class="trail-pulse" />
-                <ellipse cx="155" cy="95" rx="20" ry="6" :fill="shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3'" class="trail-pulse" style="animation-delay: 0.2s" />
-                <ellipse cx="170" cy="95" rx="15" ry="4" :fill="shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3'" class="trail-pulse" style="animation-delay: 0.4s" />
+                <ellipse cx="45" cy="90" rx="30" ry="8" :fill="shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3'" class="trail-pulse" />
+                <ellipse cx="25" cy="90" rx="20" ry="6" :fill="shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3'" class="trail-pulse" style="animation-delay: 0.2s" />
+                <ellipse cx="10" cy="90" rx="15" ry="4" :fill="shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3'" class="trail-pulse" style="animation-delay: 0.4s" />
               </g>
               
-              <!-- Shadow (3D effect) -->
-              <ellipse cx="90" cy="93" rx="80" ry="10" fill="#00000030" />
+              <!-- Flat Shadow (2D) -->
+              <ellipse cx="75" cy="88" rx="65" ry="8" fill="#00000025" />
               
-              <!-- =============== FLATBED TRAILER (3D PERSPECTIVE) - NOW AT FRONT =============== -->
-              
-              <!-- Trailer platform - bottom face -->
+              <!-- === CARGO CONTAINER (Back part) === -->
               <rect 
-                x="5" 
-                y="45" 
-                width="105" 
-                height="35" 
-                :fill="shipment.shipment_type === 'Incoming' ? '#e8e8e8' : '#f0f0f0'" 
-                stroke="#333" 
-                stroke-width="2"
-                rx="2"
+                x="55" 
+                y="25" 
+                width="95" 
+                height="55" 
+                :fill="shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3'" 
+                stroke="#1a1a1a" 
+                stroke-width="2.5" 
+                rx="3"
               />
               
-              <!-- Trailer platform - top face (3D perspective) -->
+              <!-- Container door panels (vertical lines) -->
+              <line x1="90" y1="28" x2="90" y2="77" stroke="#1a1a1a" stroke-width="2" opacity="0.4" />
+              <line x1="120" y1="28" x2="120" y2="77" stroke="#1a1a1a" stroke-width="2" opacity="0.4" />
+              
+              <!-- Container horizontal line (middle) -->
+              <line x1="60" y1="52" x2="145" y2="52" stroke="#1a1a1a" stroke-width="1.5" opacity="0.3" />
+              
+              <!-- === CABIN (Front part - Flat 2D) === -->
               <path 
-                d="M 5,45 L -3,38 L 102,38 L 110,45 Z" 
-                :fill="shipment.shipment_type === 'Incoming' ? '#f5f5f5' : '#ffffff'" 
-                stroke="#333" 
-                stroke-width="2"
-              />
-              
-              <!-- Trailer platform - left side face (3D depth) -->
-              <path 
-                d="M 5,45 L -3,38 L -3,73 L 5,80 Z" 
-                :fill="shipment.shipment_type === 'Incoming' ? '#d0d0d0' : '#dadada'" 
-                stroke="#333" 
-                stroke-width="2"
-              />
-              
-              <!-- Platform stripes (flatbed details) -->
-              <line x1="10" y1="38" x2="10" y2="80" stroke="#999" stroke-width="1.5" opacity="0.5" />
-              <line x1="30" y1="38" x2="30" y2="80" stroke="#999" stroke-width="1.5" opacity="0.5" />
-              <line x1="50" y1="38" x2="50" y2="80" stroke="#999" stroke-width="1.5" opacity="0.5" />
-              <line x1="70" y1="38" x2="70" y2="80" stroke="#999" stroke-width="1.5" opacity="0.5" />
-              <line x1="90" y1="38" x2="90" y2="80" stroke="#999" stroke-width="1.5" opacity="0.5" />
-              
-              <!-- Side rails (safety barriers) -->
-              <rect x="5" y="43" width="105" height="3" :fill="shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3'" stroke="#222" stroke-width="1" />
-              <rect x="5" y="80" width="105" height="3" :fill="shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3'" stroke="#222" stroke-width="1" />
-              
-              <!-- Front bumper/light bar -->
-              <rect x="5" y="48" width="3" height="28" fill="#ff4444" stroke="#222" stroke-width="1" />
-              
-              <!-- Reflective tape (yellow/red stripes) -->
-              <rect x="10" y="50" width="2" height="6" fill="#ffeb3b" />
-              <rect x="10" y="58" width="2" height="6" fill="#ff3333" />
-              <rect x="10" y="66" width="2" height="6" fill="#ffeb3b" />
-              <rect x="10" y="74" width="2" height="6" fill="#ff3333" />
-              
-              <!-- =============== TRACTOR/CAB (3D) - NOW AT BACK =============== -->
-              
-              <!-- Cab body - front face -->
-              <path 
-                d="M 172,48 L 172,75 L 168,82 L 115,82 L 112,75 L 112,42 L 118,38 L 165,38 Z" 
+                d="M 0,40 L 0,75 L 5,80 L 55,80 L 55,28 L 50,25 L 10,25 Z" 
                 :fill="shipment.shipment_type === 'Incoming' ? '#66bb6a' : '#64b5f6'" 
                 stroke="#1a1a1a" 
                 stroke-width="2.5"
               />
               
-              <!-- Cab - top face (3D roof) -->
-              <path 
-                d="M 172,48 L 165,42 L 112,42 L 112,42 Z" 
-                :fill="shipment.shipment_type === 'Incoming' ? '#81c784' : '#90caf9'" 
-                stroke="#1a1a1a" 
-                stroke-width="2"
-              />
-              
-              <!-- Windshield (large, angled) -->
-              <path 
-                d="M 168,40 L 162,38 L 125,38 L 120,40 L 120,50 L 168,50 Z" 
+              <!-- Windshield (2D flat) -->
+              <rect 
+                x="8" 
+                y="28" 
+                width="40" 
+                height="10" 
                 fill="#90caf9" 
                 stroke="#1a1a1a" 
                 stroke-width="2"
                 opacity="0.85"
               />
               
-              <!-- Windshield glare effect -->
-              <path 
-                d="M 165,40 L 160,39 L 145,39 L 145,42 L 165,42 Z" 
-                fill="#ffffff" 
-                opacity="0.4"
-              />
-              
               <!-- Side window -->
-              <rect x="148" y="55" width="20" height="18" fill="#90caf9" stroke="#1a1a1a" stroke-width="1.5" opacity="0.85" />
+              <rect x="8" y="45" width="18" height="20" fill="#90caf9" stroke="#1a1a1a" stroke-width="1.5" opacity="0.85" />
               
-              <!-- Door line -->
-              <line x1="145" y1="75" x2="145" y2="82" stroke="#1a1a1a" stroke-width="2" />
-              
-              <!-- Rear grille (3D look) -->
-              <rect x="168" y="60" width="6" height="15" fill="#263238" stroke="#1a1a1a" stroke-width="2" />
-              <line x1="170" y1="62" x2="170" y2="73" stroke="#444" stroke-width="1.5" />
-              <line x1="172" y1="62" x2="172" y2="73" stroke="#444" stroke-width="1.5" />
-              
-              <!-- Rear lights (3D) -->
-              <ellipse cx="172" cy="72" rx="3" ry="4" fill="#ff3333" stroke="#1a1a1a" stroke-width="1" opacity="0.9" />
-              <ellipse cx="172" cy="79" rx="3" ry="3" fill="#ff9800" stroke="#1a1a1a" stroke-width="1" />
-              
-              <!-- Side mirror -->
-              <rect x="172" y="52" width="4" height="3" :fill="shipment.shipment_type === 'Incoming' ? '#558b2f' : '#1976d2'" stroke="#000" stroke-width="1" />
-              <line x1="172" y1="53" x2="168" y2="58" stroke="#333" stroke-width="1.5" />
-              
-              <!-- =============== WHEELS (3D perspective) =============== -->
-              
-              <!-- Trailer wheels (front, triple axle like in image) -->
+              <!-- === WHEELS (2D Flat Circles) === -->
               <g>
-                <!-- Front wheel set -->
-                <circle cx="15" cy="85" r="10" fill="#2c3e50" stroke="#1a1a1a" stroke-width="2.5" />
-                <circle cx="15" cy="85" r="6" fill="#546e7a" />
-                <circle cx="15" cy="85" r="3" fill="#1a1a1a" />
-                <circle cx="15" cy="85" r="1.5" fill="#666" />
+                <!-- Front wheel -->
+                <circle cx="18" cy="82" r="9" fill="#2c3e50" stroke="#1a1a1a" stroke-width="2" />
+                <circle cx="18" cy="82" r="5" fill="#546e7a" />
+                <circle cx="18" cy="82" r="2" fill="#1a1a1a" />
                 
-                <!-- Middle wheel set -->
-                <circle cx="35" cy="85" r="10" fill="#2c3e50" stroke="#1a1a1a" stroke-width="2.5" />
-                <circle cx="35" cy="85" r="6" fill="#546e7a" />
-                <circle cx="35" cy="85" r="3" fill="#1a1a1a" />
-                <circle cx="35" cy="85" r="1.5" fill="#666" />
+                <!-- Middle wheel (under cabin/container junction) -->
+                <circle cx="68" cy="82" r="9" fill="#2c3e50" stroke="#1a1a1a" stroke-width="2" />
+                <circle cx="68" cy="82" r="5" fill="#546e7a" />
+                <circle cx="68" cy="82" r="2" fill="#1a1a1a" />
                 
-                <!-- Rear trailer wheel set -->
-                <circle cx="55" cy="85" r="10" fill="#2c3e50" stroke="#1a1a1a" stroke-width="2.5" />
-                <circle cx="55" cy="85" r="6" fill="#546e7a" />
-                <circle cx="55" cy="85" r="3" fill="#1a1a1a" />
-                <circle cx="55" cy="85" r="1.5" fill="#666" />
+                <!-- Back wheel -->
+                <circle cx="132" cy="82" r="9" fill="#2c3e50" stroke="#1a1a1a" stroke-width="2" />
+                <circle cx="132" cy="82" r="5" fill="#546e7a" />
+                <circle cx="132" cy="82" r="2" fill="#1a1a1a" />
               </g>
               
-              <!-- Cab wheels (rear steering) -->
-              <g>
-                <!-- Rear cab wheel -->
-                <circle cx="160" cy="85" r="9" fill="#2c3e50" stroke="#1a1a1a" stroke-width="2.5" />
-                <circle cx="160" cy="85" r="5" fill="#546e7a" />
-                <circle cx="160" cy="85" r="2" fill="#1a1a1a" />
-                
-                <!-- Front cab wheel (drive axle) -->
-                <circle cx="120" cy="85" r="10" fill="#2c3e50" stroke="#1a1a1a" stroke-width="2.5" />
-                <circle cx="120" cy="85" r="6" fill="#546e7a" />
-                <circle cx="120" cy="85" r="3" fill="#1a1a1a" />
-                <circle cx="120" cy="85" r="1.5" fill="#666" />
-              </g>
+              <!-- Headlights (simple 2D) -->
+              <circle cx="2" cy="70" r="3" fill="#ffeb3b" stroke="#1a1a1a" stroke-width="1" opacity="0.9" />
               
-              <!-- Wheel hubs (metallic look) -->
-              <circle cx="15" cy="85" r="2" fill="#c0c0c0" opacity="0.8" />
-              <circle cx="35" cy="85" r="2" fill="#c0c0c0" opacity="0.8" />
-              <circle cx="55" cy="85" r="2" fill="#c0c0c0" opacity="0.8" />
-              <circle cx="120" cy="85" r="2" fill="#c0c0c0" opacity="0.8" />
-              <circle cx="160" cy="85" r="1.5" fill="#c0c0c0" opacity="0.8" />
-              
-              <!-- =============== DETAILS =============== -->
-              
-              <!-- Exhaust stack (vertical pipe) -->
-              <rect x="118" y="35" width="4" height="10" fill="#333" stroke="#000" stroke-width="1" rx="1" />
-              <ellipse cx="120" cy="35" rx="2" ry="1.5" fill="#444" stroke="#000" stroke-width="1" />
-              
-              <!-- Air intake/filter -->
-              <rect x="126" y="37" width="6" height="8" fill="#e0e0e0" stroke="#333" stroke-width="1" rx="1" />
+              <!-- Grille (simple vertical lines) -->
+              <line x1="0" y1="55" x2="0" y2="68" stroke="#1a1a1a" stroke-width="2.5" />
+              <rect x="1" y="56" width="4" height="11" fill="#263238" opacity="0.6" />
               
               <!-- Status Indicator (large, prominent) -->
               <circle 
-                cx="5" 
-                cy="25" 
-                r="12" 
+                cx="145" 
+                cy="15" 
+                r="10" 
                 :fill="shipment.status === 'LoadingUnloading' ? '#ff5722' : (shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3')"
                 stroke="#fff"
                 stroke-width="3"
                 :class="{ 'blink-animation': shipment.location === 'Weight_Station_1' || shipment.status === 'LoadingUnloading' }"
               />
               
-              <!-- License Plate (on trailer) -->
+              <!-- License Plate (large, on container) -->
               <rect 
-                x="20" 
-                y="52" 
-                width="45" 
-                height="15" 
+                x="65" 
+                y="40" 
+                width="70" 
+                height="20" 
                 fill="#ffffff" 
                 stroke="#000" 
                 stroke-width="2.5" 
-                rx="2"
+                rx="3"
               />
               
               <text 
-                x="43" 
-                y="62" 
+                x="100" 
+                y="53" 
                 text-anchor="middle" 
-                font-size="10" 
+                font-size="12" 
                 font-weight="bold" 
                 fill="#000"
                 font-family="Arial, sans-serif"
@@ -1421,8 +999,8 @@ export default {
               
               <!-- Status text below truck -->
               <rect 
-                x="35" 
-                y="105" 
+                x="20" 
+                y="100" 
                 width="110" 
                 height="18" 
                 :fill="shipment.status === 'Registered' ? '#ff9800' : shipment.status === 'LoadedUnloaded' ? '#ff9800' : shipment.status === 'LoadingUnloading' ? '#ff5722' : (shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3')" 
@@ -1434,8 +1012,8 @@ export default {
               />
               
               <text 
-                x="90" 
-                y="117" 
+                x="75" 
+                y="112" 
                 text-anchor="middle" 
                 font-size="9" 
                 font-weight="bold" 
@@ -1443,9 +1021,9 @@ export default {
                 font-family="Arial, sans-serif"
               >
                 {{ shipment.status === 'Registered' ? '→ MOVING TO W1' : 
-                  shipment.status === 'LoadedUnloaded' ? '→ MOVING TO W2' :
-                  shipment.status === 'LoadingUnloading' ? 'LOADING...' :
-                  shipment.status }}
+                   shipment.status === 'LoadedUnloaded' ? '→ MOVING TO W2' :
+                   shipment.status === 'LoadingUnloading' ? 'LOADING...' :
+                   shipment.status }}
               </text>
               
               <!-- Tooltip with full info -->
@@ -1524,15 +1102,15 @@ Location: {{ shipment.unload_location || 'Anbar_Salon_Tolid' }}</title>
 
         <!-- Data Info Display (COMPACT - RIGHT SIDE - ALIGNED WITH ANBAR AKHAL) -->
         <g class="data-info" v-if="!loading">
-          <rect x="1280" y="843" width="300" height="125" fill="#6c79c5" opacity="0.95" rx="10" stroke="#fff" stroke-width="4" />
+          <rect x="1280" y="843" width="400" height="125" fill="#5c6bc0" opacity="0.95" rx="10" stroke="#fff" stroke-width="4" />
           
           <!-- Title with Icon -->
-          <text x="1430" y="865" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff">
+          <text x="1480" y="865" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff">
             📊 STATUS
           </text>
           
           <!-- === Row 1: TRUCKS === -->
-          <text x="1350" y="888" font-size="10" fill="#ffd54f" font-weight="bold">
+          <text x="1295" y="888" font-size="10" fill="#ffd54f" font-weight="bold">
             🚚 Trucks:
           </text>
           <text x="1380" y="888" text-anchor="end" font-size="14" fill="#fff" font-weight="bold">
@@ -1576,10 +1154,10 @@ Location: {{ shipment.unload_location || 'Anbar_Salon_Tolid' }}</title>
           </text>
           
           <!-- === Row 3: TOTAL STOCK === -->
-          <text x="1350" y="935" font-size="11" fill="#b39ddb" font-weight="bold">
+          <text x="1295" y="935" font-size="11" fill="#b39ddb" font-weight="bold">
             📦 Stock:
           </text>
-          <text x="1450" y="935" text-anchor="end" font-size="18" fill="#fff" font-weight="bold">
+          <text x="1665" y="935" text-anchor="end" font-size="18" fill="#fff" font-weight="bold">
             {{ totalInventory }}
           </text>
         </g>

@@ -4837,9 +4837,9 @@ def get_factory_map_data(request):
         if request.method != 'GET':
             return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
-        shipments = Shipments.objects.exclude(status='Cancelled').filter(
+        shipments = Shipments.objects.filter(
             Q(status='Registered') | Q(status='LoadingUnloading') | Q(status='LoadedUnloaded')
-        ).values('id', 'shipment_type', 'status', 'location', 'license_number', 'customer_name', 
+        ).exclude(status='Cancelled').values('id', 'shipment_type', 'status', 'location', 'license_number', 'customer_name', 
                 'supplier_name', 'unload_location')
 
         return JsonResponse({'status': 'success', 'data': list(shipments)}, status=200)
@@ -4861,6 +4861,7 @@ def get_warehouse_inventory(request):
             'Anbar_Koochak': Anbar_Koochak.objects.filter(status='In-stock').count(),
             'Anbar_Salon_Tolid': Anbar_Salon_Tolid.objects.filter(status='In-stock').count(),
             'Anbar_Parvandeh': Anbar_Parvandeh.objects.filter(status='In-stock').count(),
+            'Anbar_Akhal': Anbar_Akhal.objects.filter(status='In-stock').count(),
         }
         return JsonResponse({'status': 'success', 'data': inventory_data}, status=200)
     except Exception as e:
