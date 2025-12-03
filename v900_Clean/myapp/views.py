@@ -6,7 +6,7 @@ from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator, EmptyPage
 from django.db import connection
-from django.db.models import Count, Value, F, Q, Subquery, OuterRef, Case, When, CharField
+from django.db.models import Sum, Count, Value, F, Q, Subquery, OuterRef, Case, When, CharField, FloatField
 from django.db.models.functions import Concat, Substr, Replace, StrIndex, Coalesce
 from django.db.models.base import ModelBase
 from django.forms.models import model_to_dict
@@ -884,7 +884,7 @@ def get_customer_names(request):
             customer_names = [Customer.customer_name for Customer in Customers]
 
             # Return the material names in a JSON response
-            return JsonResponse({'customer_data': customer_names}, status=200)
+            return JsonResponse({'customer_names': customer_names}, status=200)
 
         except Exception as e:
             # Return a general error response
@@ -913,8 +913,8 @@ def get_customer_data(request):
             customer_name = request.GET.get("customer_name")
             # Query the RawMaterial model for all records
             customer = Customer.objects.filter(customer_name__iexact=customer_name).values(
-                'customer_name', 'national_id', 'register_number', 
-                'commercial_code', 'address', 'postal_code', 'phone'
+                'customer_name', 'phone', 'address', 
+                'commercial_code', 'postal_code', 'national_id', 'register_number', 
             ).first()
 
             if not Customer:
@@ -4837,33 +4837,410 @@ def get_factory_map_data(request):
         if request.method != 'GET':
             return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
-        shipments = Shipments.objects.filter(
-            Q(status='Registered') | Q(status='LoadingUnloading') | Q(status='LoadedUnloaded')
-        ).exclude(status='Cancelled').values('id', 'shipment_type', 'status', 'location', 'license_number', 'customer_name', 
-                'supplier_name', 'unload_location')
+        # Calculate time threshold: 60 minutes ago
+        sixty_minutes_ago = timezone.now() - timedelta(minutes=240)
+
+        # Get shipments with complex filter:
+        # 1. Exclude all 'Cancelled' shipments
+        # 2. For 'Delivered' shipments, only include recent ones (last 60 minutes)
+        # 3. Include all other statuses (Registered, LoadingUnloading, LoadedUnloaded, Office)
+        shipments = Shipments.objects.exclude(status='Cancelled').exclude(
+            Q(status='Delivered') & Q(exit_time__lt=sixty_minutes_ago)  # Exclude old delivered
+        ).values(
+            'id', 'shipment_type', 'status', 'location', 'license_number', 'customer_name',  
+            'supplier_name', 'unload_location', 'material_type', 'material_name')
 
         return JsonResponse({'status': 'success', 'data': list(shipments)}, status=200)
     except Exception as e:
-        print(e)
+        print(f"Error in get_factory_map_data: {e}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 @csrf_exempt
 def get_warehouse_inventory(request):
+    """
+    Optimized version with select_related for better performance.
+    - Products: weight from (gsm * length * profile_name) / 1000
+    - Raw Materials: weight from shipment.net_weight
+    """
     try:
         if request.method != 'GET':
             return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
-        inventory_data = {
-            'Anbar_PAK': Anbar_PAK.objects.filter(status='In-stock').count(),
-            'Anbar_Sangin': Anbar_Sangin.objects.filter(status='In-stock').count(),
-            'Anbar_Khamir_Kordan': Anbar_Khamir_Kordan.objects.filter(status='In-stock').count(),
-            'Anbar_Khamir_Ghadim': Anbar_Khamir_Ghadim.objects.filter(status='In-stock').count(),
-            'Anbar_Koochak': Anbar_Koochak.objects.filter(status='In-stock').count(),
-            'Anbar_Salon_Tolid': Anbar_Salon_Tolid.objects.filter(status='In-stock').count(),
-            'Anbar_Parvandeh': Anbar_Parvandeh.objects.filter(status='In-stock').count(),
-            'Anbar_Akhal': Anbar_Akhal.objects.filter(status='In-stock').count(),
-        }
+        # Get all table names from the database
+        all_table_names = connection.introspection.table_names()
+        # Filter table names to include only those that start with 'Anbar_'
+        warehouse_names = [name for name in all_table_names if name.startswith('Anbar_')]
+
+        inventory_data = {}
+
+        for warehouse_name in warehouse_names:
+            WarehouseModel = apps.get_model('myapp', warehouse_name)
+            # Base queryset with shipment preloaded (optimization)
+            in_stock = WarehouseModel.objects.filter(status='In-stock').select_related('shipment_id')
+            
+            # Products: Items with reel_number
+            products = in_stock.filter(
+                Q(reel_number__isnull=False) & ~Q(reel_number='')
+            )
+            
+            # Raw Materials: Items with supplier but no reel
+            raw_materials = in_stock.filter(
+                Q(supplier_name__isnull=False) & ~Q(supplier_name=''),
+                Q(reel_number__isnull=True) | Q(reel_number='')
+            )
+            
+            products_weight = sum(
+                ((item.gsm or 0) * (item.length or 0) * (item.width or 0)) / 100000000.0
+                for item in products
+            )
+            
+            # Calculate RAW MATERIALS weight: from shipment.net_weight
+            raw_materials_weight = 0.0
+            for item in raw_materials:
+                if item.shipment_id and item.shipment_id.net_weight:
+                    try:
+                        net_weight = float(str(item.shipment_id.net_weight).strip()) / 1000.0
+                        raw_materials_weight += net_weight
+                    except (ValueError, AttributeError, TypeError):
+                        pass
+            
+            # Store data
+            inventory_data[warehouse_name] = {
+                'total_count': in_stock.count(),
+                'products': {
+                    'count': products.count(),
+                    'weight': round(products_weight, 2),
+                },
+                'raw_materials': {
+                    'count': raw_materials.count(),
+                    'weight': round(raw_materials_weight, 2),
+                },
+                'total_weight': round(products_weight + raw_materials_weight, 2)
+            }
+
         return JsonResponse({'status': 'success', 'data': inventory_data}, status=200)
+        
     except Exception as e:
-        print(e)
+        print(f"Error in get_warehouse_inventory: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@csrf_exempt
+def get_anbar_salon_tolid_details(request):
+    """
+    Get detailed inventory data for Anbar_Salon_Tolid:
+    - Count of reel_numbers grouped by width with total weight for each group
+    - Count of items grouped by profile_name
+    - Weight formula: (gsm * length * width) / 100000000 (result in tons)
+    """
+    try:
+        if request.method != 'GET':
+            return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+        # Get all In-stock items from Anbar_Salon_Tolid
+        in_stock = Anbar_Salon_Tolid.objects.filter(status='In-stock')
+
+        # ============================================
+        # 1. Group by WIDTH: count and total weight
+        # ============================================
+        width_groups = in_stock.filter(
+            Q(reel_number__isnull=False) & ~Q(reel_number=''),
+            Q(width__isnull=False)
+        ).values('width').annotate(
+            count=Count('id')
+        ).order_by('-width')
+
+        # Calculate weight for each width group
+        width_data = []
+        for group in width_groups:
+            width_value = group['width']
+            count = group['count']
+            
+            # Get all items with this width to calculate total weight
+            items_in_group = in_stock.filter(
+                Q(reel_number__isnull=False) & ~Q(reel_number=''),
+                width=width_value
+            )
+            
+            # Calculate total weight: SUM((gsm * length * width) / 100000000)
+            total_weight = sum(
+                ((item.gsm or 0) * (item.length or 0) * (item.width or 0)) / 100000000.0
+                for item in items_in_group
+            )
+            
+            width_data.append({
+                'width': width_value,
+                'count': count,
+                'total_weight_tons': round(total_weight, 2)
+            })
+
+        # ============================================
+        # 2. Group by PROFILE_NAME: count
+        # ============================================
+        profile_groups = in_stock.filter(
+            Q(profile_name__isnull=False) & ~Q(profile_name='')
+        ).values('profile_name').annotate(
+            count=Count('id')
+        ).order_by('-count')
+
+        profile_data = []
+        for group in profile_groups:
+            profile_data.append({
+                'profile_name': group['profile_name'],
+                'count': group['count']
+            })
+
+        # ============================================
+        # 3. Summary statistics
+        # ============================================
+        total_reels = in_stock.filter(
+            Q(reel_number__isnull=False) & ~Q(reel_number='')
+        ).count()
+
+        total_raw_materials = in_stock.filter(
+            Q(supplier_name__isnull=False) & ~Q(supplier_name=''),
+            Q(reel_number__isnull=True) | Q(reel_number='')
+        ).count()
+
+        # Total weight of all products (reels)
+        all_products = in_stock.filter(
+            Q(reel_number__isnull=False) & ~Q(reel_number='')
+        )
+        total_products_weight = sum(
+            ((item.gsm or 0) * (item.length or 0) * (item.width or 0)) / 100000000.0
+            for item in all_products
+        )
+
+        # Response
+        response_data = {
+            'status': 'success',
+            'data': {
+                'summary': {
+                    'total_reels': total_reels,
+                    'total_profiles': total_raw_materials,
+                    'total_products_weight_tons': round(total_products_weight, 2),
+                },
+                'reels_by_width': width_data,
+                'profiles': profile_data,
+            }
+        }
+
+        return JsonResponse(response_data, status=200)
+
+    except Exception as e:
+        print(f"Error in get_anbar_salon_tolid_details: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@csrf_exempt
+def get_warehouse_inventory_details(request):
+    """
+    Get detailed inventory data for any Warehouse:
+    - Count of reel_numbers grouped by width with total weight for each group
+    - Count of items grouped by raw material name with total weight (from shipment.net_weight)
+    - Weight formula for products: (gsm * length * width) / 100000000 (result in tons)
+    - Weight formula for raw materials: shipment.net_weight / 1000 (kg to tons)
+    """
+    try:
+        if request.method != 'GET':
+            return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+        # Get warehouse name from request
+        warehouse_name = request.GET.get('warehouse')
+        
+        # Validate warehouse parameter
+        if not warehouse_name:
+            return JsonResponse({'status': 'error', 'message': 'warehouse parameter is required'}, status=400)
+
+        # Dynamically get the warehouse model
+        try:
+            WarehouseModel = apps.get_model('myapp', warehouse_name)
+        except LookupError:
+            return JsonResponse({'status': 'error', 'message': f'Warehouse "{warehouse_name}" not found'}, status=404)
+
+        # Get all In-stock items with shipment preloaded for optimization
+        in_stock = WarehouseModel.objects.filter(status='In-stock').select_related('shipment_id')
+
+        # ============================================
+        # 1. Group by WIDTH: count and total weight (for products/reels)
+        # ============================================
+        width_groups = in_stock.filter(
+            Q(reel_number__isnull=False) & ~Q(reel_number=''),
+            Q(width__isnull=False)
+        ).values('width').annotate(
+            count=Count('id')
+        ).order_by('-width')
+
+        # Calculate weight for each width group
+        width_data = []
+        for group in width_groups:
+            width_value = group['width']
+            count = group['count']
+            
+            # Get all items with this width to calculate total weight
+            items_in_group = in_stock.filter(
+                Q(reel_number__isnull=False) & ~Q(reel_number=''),
+                width=width_value
+            )
+            
+            # Calculate total weight: SUM((gsm * length * width) / 100000000)
+            total_weight = sum(
+                ((item.gsm or 0) * (item.length or 0) * (item.width or 0)) / 100000000.0
+                for item in items_in_group
+            )
+            
+            width_data.append({
+                'width': width_value,
+                'count': count,
+                'total_weight_tons': round(total_weight, 2)
+            })
+
+        # =======================================================
+        # 2. Special handling for Anbar_Salon_Tolid (profiles instead of raw materials)
+        # =======================================================
+        is_salon_tolid = warehouse_name == 'Anbar_Salon_Tolid'
+        
+        if is_salon_tolid:
+            # Group by PROFILE_NAME for Anbar_Salon_Tolid
+            profile_groups = in_stock.filter(
+                Q(profile_name__isnull=False) & ~Q(profile_name='')
+            ).values('profile_name').annotate(
+                count=Count('id')
+            ).order_by('-count')
+
+            profile_data = []
+            for group in profile_groups:
+                profile_data.append({
+                    'profile_name': group['profile_name'],
+                    'count': group['count']
+                })
+            
+            # Summary for Salon Tolid
+            total_reels = in_stock.filter(
+                Q(reel_number__isnull=False) & ~Q(reel_number='')
+            ).count()
+            
+            all_products = in_stock.filter(
+                Q(reel_number__isnull=False) & ~Q(reel_number='')
+            )
+            total_products_weight = sum(
+                ((item.gsm or 0) * (item.length or 0) * (item.width or 0)) / 100000000.0
+                for item in all_products
+            )
+            
+            total_profiles_count = len(profile_data)
+            
+            # Response for Anbar_Salon_Tolid
+            response_data = {
+                'status': 'success',
+                'warehouse': warehouse_name,
+                'is_salon_tolid': True,
+                'data': {
+                    'summary': {
+                        'total_reels': total_reels,
+                        'total_profiles': total_profiles_count,
+                        'total_products_weight_tons': round(total_products_weight, 2),
+                    },
+                    'reels_by_width': width_data,
+                    'profiles': profile_data,
+                }
+            }
+            return JsonResponse(response_data, status=200)
+        
+        # =======================================================
+        # 2b. Group by Raw Material Name: count and total weight (for other warehouses)
+        # =======================================================
+        raw_materials_groups = in_stock.filter(
+            Q(supplier_name__isnull=False) & ~Q(supplier_name=''),
+            Q(reel_number__isnull=True) | Q(reel_number='')
+        ).values('material_name').annotate(
+            count=Count('id')
+        ).order_by('-count')
+
+        # Calculate weight for each raw material group (from shipment.net_weight)
+        raw_materials_data = []
+        for group in raw_materials_groups:
+            material_name = group['material_name']
+            count = group['count']
+            
+            # Get all items with this raw material name to calculate total weight
+            items_in_group = in_stock.filter(
+                Q(supplier_name__isnull=False) & ~Q(supplier_name=''),
+                Q(reel_number__isnull=True) | Q(reel_number=''),
+                material_name=material_name
+            )
+            
+            # Calculate total weight from shipment.net_weight (kg to tons)
+            total_weight = 0.0
+            for item in items_in_group:
+                if item.shipment_id and item.shipment_id.net_weight:
+                    try:
+                        net_weight = float(str(item.shipment_id.net_weight).strip()) / 1000.0
+                        total_weight += net_weight
+                    except (ValueError, AttributeError, TypeError):
+                        pass
+            
+            raw_materials_data.append({
+                'material_name': material_name,
+                'count': count,
+                'total_weight_tons': round(total_weight, 2)
+            })
+
+        # ============================================
+        # 3. Summary statistics
+        # ============================================
+        # Products (reels)
+        all_products = in_stock.filter(
+            Q(reel_number__isnull=False) & ~Q(reel_number='')
+        )
+        total_reels = all_products.count()
+        total_products_weight = sum(
+            ((item.gsm or 0) * (item.length or 0) * (item.width or 0)) / 100000000.0
+            for item in all_products
+        )
+
+        # Raw materials
+        all_raw_materials = in_stock.filter(
+            Q(supplier_name__isnull=False) & ~Q(supplier_name=''),
+            Q(reel_number__isnull=True) | Q(reel_number='')
+        )
+        total_raw_materials_count = all_raw_materials.count()
+        
+        # Raw materials weight from shipment.net_weight
+        total_raw_materials_weight = 0.0
+        for item in all_raw_materials:
+            if item.shipment_id and item.shipment_id.net_weight:
+                try:
+                    net_weight = float(str(item.shipment_id.net_weight).strip()) / 1000.0
+                    total_raw_materials_weight += net_weight
+                except (ValueError, AttributeError, TypeError):
+                    pass
+
+        # Response for regular warehouses
+        response_data = {
+            'status': 'success',
+            'warehouse': warehouse_name,
+            'is_salon_tolid': False,
+            'data': {
+                'summary': {
+                    'total_reels': total_reels,
+                    'total_raw_materials': total_raw_materials_count,
+                    'total_products_weight_tons': round(total_products_weight, 2),
+                    'total_raw_materials_weight_tons': round(total_raw_materials_weight, 2),
+                },
+                'reels_by_width': width_data,
+                'raw_materials_by_name': raw_materials_data,
+            }
+        }
+
+        return JsonResponse(response_data, status=200)
+
+    except Exception as e:
+        print(f"Error in get_warehouse_inventory_details: {e}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)

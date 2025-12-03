@@ -9,6 +9,7 @@ export default {
       error: null,
       activeShipments: [],
       warehouseInventory: {},
+      warehouseInventoryDetails: {}, // Detailed inventory with count and weight
       pollingInterval: null,
       lastUpdateTime: null,
       // Location coordinates mapping (matching SVG positions)
@@ -59,7 +60,13 @@ export default {
       },
       truckAnimations: {}, // Store animated positions { truckId: { currentX, currentY, rotation, animating } }
       animationFrames: {},  // Store RAF IDs for cleanup
-
+      
+      // Dialog state
+      showInventoryDialog: false,
+      dialogType: null, // 'products' or 'rawMaterials' or 'profiles'
+      selectedWarehouse: null,
+      selectedWarehouseDetails: null,
+      loadingDetails: false,
     }
   },
   computed: {
@@ -200,8 +207,18 @@ export default {
         const response = await axios.get('/myapp/api/getWarehouseInventory')
         
         if (response.data.status === 'success') {
-          this.warehouseInventory = response.data.data
+          // Store detailed data
+          this.warehouseInventoryDetails = response.data.data
+          
+          // Create simple count map for backward compatibility
+          const simpleCounts = {}
+          Object.entries(response.data.data).forEach(([warehouse, data]) => {
+            simpleCounts[warehouse] = data.total_count || 0
+          })
+          this.warehouseInventory = simpleCounts
+          
           console.log('Loaded warehouse inventory:', this.warehouseInventory)
+          console.log('Detailed warehouse inventory:', this.warehouseInventoryDetails)
         } else {
           throw new Error(response.data.message || 'Failed to fetch inventory')
         }
@@ -391,16 +408,54 @@ export default {
     },
 
     /**
+     * Get warehouse total weight in kg
+     */
+    getWarehouseWeight(warehouseName) {
+      const details = this.warehouseInventoryDetails[warehouseName]
+      return details ? details.total_weight : 0
+    },
+
+    /**
+     * Get warehouse products weight in kg
+     */
+    getWarehouseProductsWeight(warehouseName) {
+      const details = this.warehouseInventoryDetails[warehouseName]
+      const weight = details && details.products ? details.products.weight : 0
+      // console.log(`🟢 Products weight for ${warehouseName}:`, weight, details)
+      return weight
+    },
+
+    /**
+     * Get warehouse raw materials weight in kg
+     */
+    getWarehouseRawMaterialsWeight(warehouseName) {
+      const details = this.warehouseInventoryDetails[warehouseName]
+      const weight = details && details.raw_materials ? details.raw_materials.weight : 0
+      // console.log(`🟠 Raw materials weight for ${warehouseName}:`, weight, details)
+      return weight
+    },
+
+    /**
      * Format warehouse display name
      */
     formatWarehouseName(name) {
       return name.replace('Anbar_', '').replace(/_/g, ' ')
+    },
+    
+    /**
+     * Format weight for display (with units)
+     */
+    formatWeight(weight) {
+      const numWeight = Number(weight) || 0
+      return numWeight.toFixed(1) + 't'    
     },
 
     /**
      * Animate truck along a path with waypoints
      */
     animateTruckAlongPath(shipment, waypoints) {
+      console.log('🎬 -----------------------------------------------------')
+      console.log('🎬 Animate truck along path', shipment, waypoints)
       if (!waypoints || waypoints.length < 2) return;
       
       const truckId = shipment.id;
@@ -411,6 +466,11 @@ export default {
           // Animation complete
           if (this.truckAnimations[truckId]) {
             this.truckAnimations[truckId].animating = false;
+      
+            // If Delivered and reached the end, mark for hiding
+            if (shipment.status === 'Delivered') {
+              this.truckAnimations[truckId].exited = true;
+            }          
           }
           return;
         }
@@ -431,15 +491,21 @@ export default {
           
           const currentX = start.x + (end.x - start.x) * easeProgress;
           const currentY = start.y + (end.y - start.y) * easeProgress;
-          const rotation = Math.atan2(end.y - start.y, end.x - start.x) * (180 / Math.PI);
           
+          const rotation = Math.atan2(end.y - start.y, end.x - start.x) * (180 / Math.PI);
+
+          // Determine if moving left (for flipping the truck image)
+          const dx = end.x - start.x;
+          const movingLeft = dx < 0;
+          console.log('🎬 movingLeft', movingLeft)
           // Update animation state
-          // this.$set(this.truckAnimations, truckId, {
           this.truckAnimations[truckId] = {
             currentX,
             currentY,
-            rotation,
-            animating: true
+            rotation: movingLeft ? 0 : rotation,  // No rotation needed anymore
+            animating: true,
+            exited: false,
+            movingLeft: movingLeft  // Track direction for flipping
           };
           
           if (progress < 1) {
@@ -455,6 +521,7 @@ export default {
       };
       
       animateSegment();
+      console.log('🎬 -----------------------------------------------------')
     },  
 
     /**
@@ -546,7 +613,7 @@ export default {
               ]
             }
           }
-          else if (type === 'Outgoing') {
+          else {
             return [
               currentPos || { x: 320, y: 580 },  // Start from current or W1
               { x: 320, y: 580 },   // W1
@@ -628,7 +695,7 @@ export default {
                 ]
             }
           }
-          else if (type === 'Outgoing') {
+          else {
             return [
               start,                  // From Anbar Salon Tolid
               { x: 280, y: 280 },     // Beside building
@@ -638,15 +705,15 @@ export default {
           }
         case 'Office':
           return [
-            start,
+            currentPos || { x: 1140, y: 410 },
             { x: 1140, y: 410 },
             { x: 1080, y: 724 },
           ];
         case 'Delivered':
           return [
             currentPos || { x: 1224, y: 724 },  // Office
-            { x: 1070, y: 760 },  // Exit
-            { x: 1070, y: 820 },   // Street
+            // { x: 1070, y: 760 },  // Exit
+            { x: 900, y: 820 },   // Street
             { x: 0, y: 820 }   // Street
           ];
         default:
@@ -674,16 +741,126 @@ export default {
         return animation.rotation;
       }
       return this.getTruckRotation(shipment);
+    },
+
+    /**
+     * Check if truck is moving left (to flip the image)
+     */
+    isTruckMovingLeft(shipment) {
+      const animation = this.truckAnimations[shipment.id];
+      if (animation && animation.movingLeft !== undefined) {
+        return animation.movingLeft;
+      }
+      // Default: check based on status
+      // Delivered trucks exit to the left
+      if (shipment.status === 'Delivered') {
+        return true;
+      }
+      return false;
+    },
+
+    /**
+     * Open Products Dialog (Green Circle Click)
+     */
+    async openProductsDialog(warehouseName) {
+      console.log('Opening products dialog for:', warehouseName)
+      this.selectedWarehouse = warehouseName
+      this.dialogType = 'products'
+      this.loadingDetails = true
+      this.showInventoryDialog = true
+      
+      try {
+        const response = await axios.get(`/myapp/api/getWarehouseInventoryDetails?warehouse=${warehouseName}`)
+        if (response.data.status === 'success') {
+          this.selectedWarehouseDetails = response.data
+          console.log('Loaded warehouse details:', response.data)
+        }
+      } catch (error) {
+        console.error('Error fetching warehouse details:', error)
+        this.selectedWarehouseDetails = null
+      } finally {
+        this.loadingDetails = false
+      }
+    },
+
+    /**
+     * Open Raw Materials / Profiles Dialog (Orange Circle Click)
+     */
+    async openRawMaterialsDialog(warehouseName) {
+      console.log('Opening raw materials dialog for:', warehouseName)
+      this.selectedWarehouse = warehouseName
+      this.dialogType = warehouseName === 'Anbar_Salon_Tolid' ? 'profiles' : 'rawMaterials'
+      this.loadingDetails = true
+      this.showInventoryDialog = true
+      
+      try {
+        const response = await axios.get(`/myapp/api/getWarehouseInventoryDetails?warehouse=${warehouseName}`)
+        if (response.data.status === 'success') {
+          this.selectedWarehouseDetails = response.data
+          console.log('Loaded warehouse details:', response.data)
+        }
+      } catch (error) {
+        console.error('Error fetching warehouse details:', error)
+        this.selectedWarehouseDetails = null
+      } finally {
+        this.loadingDetails = false
+      }
+    },
+
+    /**
+     * Close inventory dialog
+     */
+    closeInventoryDialog() {
+      this.showInventoryDialog = false
+      this.selectedWarehouse = null
+      this.selectedWarehouseDetails = null
+      this.dialogType = null
+    },
+
+    /**
+     * Get cylinder height based on count (for visualization)
+     */
+    getCylinderHeight(count, maxCount) {
+      const minHeight = 40
+      const maxHeight = 120
+      if (!maxCount || maxCount === 0) return minHeight
+      return minHeight + ((count / maxCount) * (maxHeight - minHeight))
+    },
+
+    /**
+     * Get cube size based on count (for visualization)
+     */
+    getCubeSize(count, maxCount) {
+      const minSize = 50
+      const maxSize = 100
+      if (!maxCount || maxCount === 0) return minSize
+      return minSize + ((count / maxCount) * (maxSize - minSize))
+    },
+
+    /**
+     * Get max count from array safely
+     */
+    getMaxCount(items, key = 'count') {
+      if (!items || items.length === 0) return 1
+      return Math.max(...items.map(i => i[key] || 0), 1)
     }
   },
   watch: {
     activeShipments: {
       handler(newShipments, oldShipments) {
+        // console.log('🎬 Watch triggered: activeShipments changed', {
+        //   new: newShipments?.length,
+        //   old: oldShipments?.length
+        // })
+        
         newShipments.forEach(shipment => {
           // Check if truck status changed or is new
           const oldShipment = oldShipments?.find(s => s.id === shipment.id);
           
-          if (!oldShipment || oldShipment.status !== shipment.status) {
+          // Trigger animation if: new shipment, status changed, OR initial load (no oldShipments)
+          if (!oldShipment || oldShipment.status !== shipment.status || !oldShipments) {
+            // console.log(`🚚 Starting animation for ${shipment.license_number} (status: ${shipment.status})`)
+            
             // Get current animation state (if any)
             const currentAnimation = this.truckAnimations[shipment.id];
             const currentPos = currentAnimation ? 
@@ -697,10 +874,8 @@ export default {
               // Cancel any existing animation
               if (this.animationFrames[shipment.id]) {
                 cancelAnimationFrame(this.animationFrames[shipment.id]);
-                // delete this.animationFrames[shipment.id];
               }
               // Initialize position at start
-              // this.$set(this.truckAnimations, shipment.id, {
               this.truckAnimations[shipment.id] = {
                 currentX: waypoints[0].x,
                 currentY: waypoints[0].y,
@@ -712,11 +887,14 @@ export default {
               setTimeout(() => {
                 this.animateTruckAlongPath(shipment, waypoints);
               }, 100);
+            } else {
+              // console.warn(`⚠️ No waypoints for ${shipment.license_number}`)
             }
           }
         });
       },
-      deep: true
+      deep: true,
+      immediate: true  // ← ADD THIS LINE! Triggers on initial load
     }
   }
 }
@@ -1099,7 +1277,7 @@ export default {
           
           <!-- Right entrance - moved to right -->
           <rect x="1010" y="760" width="120" height="42" fill="#fff" stroke="#000" stroke-width="2" />
-          <text x="1070" y="785" text-anchor="middle" font-size="12">Exit</text>
+          <text x="1070" y="785" text-anchor="middle" font-size="12">Entrance</text>
         </g>
 
         <!-- STATIC FORKLIFTS (Always Visible - Ready State - BIGGER) -->
@@ -1175,38 +1353,78 @@ export default {
         <!-- Static truck icons removed - only dynamic trucks from database will show -->
 
         <!-- ============================================ -->
-        <!-- DYNAMIC DATA FROM DATABASE -->
+        <!-- DYNAMIC DATA FROM DATABASE -->  
         <!-- ============================================ -->
 
-        <!-- Warehouse Inventory Badges (Dynamic) -->
+        <!-- Warehouse Inventory Badges (Dynamic - Two Circles: Products Weight & Raw Materials Weight) -->
         <g class="warehouse-badges">
           <g 
             v-for="warehouse in warehouseNames" 
             :key="warehouse"
             :transform="`translate(${warehouseBadgePositions[warehouse].x}, ${warehouseBadgePositions[warehouse].y})`"
           >
-            <!-- Badge background -->
-            <circle cx="0" cy="0" r="22" fill="#667eea" stroke="#fff" stroke-width="3" opacity="0.95" />
-            <!-- Count text -->
+          <!-- PRODUCTS Weight Circle (Top) - Green - CLICKABLE -->
+          <g class="clickable-circle" @click="openProductsDialog(warehouse)">
+            <circle cx="0" cy="0" r="20" fill="#4CAF50" stroke="#fff" stroke-width="2.5" opacity="0.95" />
             <text 
               x="0" 
-              y="6" 
+              y="-3" 
               text-anchor="middle" 
-              font-size="14" 
+              font-size="10" 
               font-weight="bold" 
               fill="#fff"
             >
-              {{ getWarehouseCount(warehouse) }}
+              {{ formatWeight(getWarehouseProductsWeight(warehouse)) }}
             </text>
+            <text 
+              x="0" 
+              y="8" 
+              text-anchor="middle" 
+              font-size="7" 
+              fill="#fff"
+              opacity="0.9"
+            >
+              Products
+            </text>
+          </g>
+
+          <!-- RAW MATERIALS Weight Circle (Bottom) - Orange - CLICKABLE -->
+          <g class="clickable-circle" @click="openRawMaterialsDialog(warehouse)">
+            <circle cx="40" cy="0" r="20" fill="#FF9800" stroke="#fff" stroke-width="2.5" opacity="0.95" />
+            <text 
+              x="40" 
+              y="-3" 
+              text-anchor="middle" 
+              font-size="10" 
+              font-weight="bold" 
+              fill="#fff"
+            >
+              {{ formatWeight(getWarehouseRawMaterialsWeight(warehouse)) }}
+            </text>
+            <text 
+              x="40" 
+              y="8" 
+              text-anchor="middle" 
+              font-size="7" 
+              fill="#fff"
+              opacity="0.9"
+            >
+              Raw Mat.
+            </text>
+          </g>
+            
             <!-- Warehouse name tooltip on hover -->
-            <title>{{ formatWarehouseName(warehouse) }}: {{ getWarehouseCount(warehouse) }} reels</title>
+            <title>{{ formatWarehouseName(warehouse) }}
+              Products: {{ (getWarehouseProductsWeight(warehouse) || 0).toFixed(2) }} ton
+              Raw Materials: {{ (getWarehouseRawMaterialsWeight(warehouse) || 0).toFixed(2) }} ton
+              Total: {{ (getWarehouseWeight(warehouse) || 0).toFixed(2) }} ton</title>
           </g>
         </g>
 
         <!-- Active Trucks (Dynamic - Workflow Animation - REALISTIC SHAPE WITH ROTATION) -->
         <g class="active-trucks">
           <g 
-            v-for="(shipment, index) in activeShipments" 
+            v-for="(shipment, index) in activeShipments.filter(s => !truckAnimations[s.id]?.exited)" 
             :key="shipment.id"
             :style="{ 
               transform: `translate(${getAnimatedTruckPosition(shipment).x}px, ${getAnimatedTruckPosition(shipment).y}px)`,
@@ -1216,8 +1434,12 @@ export default {
             class="truck-animated"
           >
             <!-- Professional 3D Flatbed Truck (REVERSED - Cab at back, trailer at front) -->
-            <g :transform="`translate(${-90 - (index % 3) * 20}, ${-70 - Math.floor(index / 3) * 70}) rotate(${getAnimatedTruckRotation(shipment)} 90 70)`">
-              
+             <g :transform="`translate(${-90 - (index % 3) * 20}, ${-70 - Math.floor(index / 3) * 70}) rotate(${isTruckMovingLeft(shipment) ? 0 : getAnimatedTruckRotation(shipment)} 90 70) scale(${isTruckMovingLeft(shipment) ? -1 : 1}, 1)`"> 
+
+            <!-- In the template, update the truck group transform -->
+            <!--<g :transform="`translate(${-90 - (index % 3) * 20}, ${-70 - Math.floor(index / 3) * 70}) scale(${isTruckMovingLeft(shipment) ? -1 : 1}, 1)`"-->
+              :style="{ transformOrigin: '90px 70px' }">
+
               <!-- Motion trail effect (if truck is moving) - now at back -->
               <g v-if="shipment.status === 'Registered' || shipment.status === 'LoadedUnloaded'" class="motion-trail" opacity="0.4">
                 <ellipse cx="135" cy="95" rx="30" ry="8" :fill="shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3'" class="trail-pulse" />
@@ -1242,13 +1464,13 @@ export default {
                 rx="2"
               />
               
-              <!-- Trailer platform - top face (3D perspective) -->
+              <!--  //Trailer platform - top face (3D perspective)
               <path 
                 d="M 5,45 L -3,38 L 102,38 L 110,45 Z" 
                 :fill="shipment.shipment_type === 'Incoming' ? '#f5f5f5' : '#ffffff'" 
                 stroke="#333" 
                 stroke-width="2"
-              />
+              /> -->
               
               <!-- Trailer platform - left side face (3D depth) -->
               <path 
@@ -1269,6 +1491,115 @@ export default {
               <rect x="5" y="43" width="105" height="3" :fill="shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3'" stroke="#222" stroke-width="1" />
               <rect x="5" y="80" width="105" height="3" :fill="shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3'" stroke="#222" stroke-width="1" />
               
+              <!-- =============== CARGO/PACKAGE (Only for Incoming shipments) =============== -->
+              <g v-if="shipment.shipment_type === 'Incoming'">
+                <!-- 3D Cube/Package on trailer -->
+                <g transform="translate(25, 30)">
+                  <!-- Cube Front Face -->
+                  <rect 
+                    x="0" 
+                    y="0" 
+                    width="60" 
+                    height="50" 
+                    fill="#D2691E" 
+                    stroke="#8B4513" 
+                    stroke-width="3"
+                  />
+                  
+                  <!-- Cube Top Face (3D perspective) -->
+                  <path 
+                    d="M 60,0 L 68,-6 L 68,-6 L 60,0 Z" 
+                    fill="#F4A460" 
+                    stroke="#8B4513" 
+                    stroke-width="3"
+                  />
+                  
+                  <!-- Cube Right Side Face (3D depth) -->
+                  <path 
+                    d="M 60,0 L 68,-6 L 68,44 L 60,50 Z" 
+                    fill="#A0522D" 
+                    stroke="#8B4513" 
+                    stroke-width="2.5"
+                  />
+                  
+                  <!-- Packaging tape/straps (horizontal) -->
+                  <rect x="3" y="12" width="54" height="3" fill="#FFD700" stroke="#DAA520" stroke-width="1" />
+                  <rect x="3" y="35" width="54" height="3" fill="#FFD700" stroke="#DAA520" stroke-width="1" />
+                  
+                  <!-- Packaging tape (vertical) -->
+                  <rect x="28" y="2" width="3" height="46" fill="#FFD700" stroke="#DAA520" stroke-width="1" />
+                                    
+                  <!-- Material Type Label (top section - white background) -->
+                  <rect 
+                    x="8" 
+                    y="4" 
+                    width="44" 
+                    height="9" 
+                    fill="#FFFFFF" 
+                    stroke="#333" 
+                    stroke-width="1.5"
+                    rx="1"
+                  />
+                  
+                  <!-- Material Type Text (smaller, at top) -->
+                  <text 
+                    x="30" 
+                    y="10" 
+                    text-anchor="middle" 
+                    font-size="6" 
+                    font-weight="bold" 
+                    fill="#1a1a1a"
+                    font-family="Arial, sans-serif"
+                  >
+                    {{ shipment.material_type || 'TYPE' }}
+                  </text>
+
+                  <!-- Material Name Label (white background) -->
+                  <rect 
+                    x="8" 
+                    y="18" 
+                    width="44" 
+                    height="12" 
+                    fill="#FFFFFF" 
+                    stroke="#333" 
+                    stroke-width="1.5"
+                    rx="1"
+                  />
+                  
+                  <!-- Material Name Text -->
+                  <text 
+                    x="30" 
+                    y="26" 
+                    text-anchor="middle" 
+                    font-size="7" 
+                    font-weight="bold" 
+                    fill="#000"
+                    font-family="Arial, sans-serif"
+                  >
+                    {{ shipment.material_name || 'Material' }}
+                  </text>
+
+                  <!-- Fragile/Handle with Care symbol (small, corner) -->
+                  <g transform="translate(2, 19)">
+                    <path 
+                      d="M 4,0 L 0,5 L 8,5 Z" 
+                      fill="none" 
+                      stroke="#FF0000" 
+                      stroke-width="1.5"
+                    />
+                    <circle cx="4" cy="7" r="0.8" fill="#FF0000" />    
+                    <text x="4" y="11" text-anchor="middle" font-size="3" fill="#FF0000" font-weight="bold">!</text>                    
+                  </g>
+
+                      
+                  <!-- Directional arrows (This Side Up) -->
+                  <g transform="translate(50, 42)">
+                    <path d="M 0,0 L 3,-3 L 6,0" fill="none" stroke="#000" stroke-width="1" />
+                    <line x1="3" y1="-3" x2="3" y2="2" stroke="#000" stroke-width="1" />
+                  </g>
+                </g>
+              </g>
+
               <!-- Front bumper/light bar -->
               <rect x="5" y="48" width="3" height="28" fill="#ff4444" stroke="#222" stroke-width="1" />
               
@@ -1397,10 +1728,10 @@ export default {
               
               <!-- License Plate (on trailer) -->
               <rect 
-                x="20" 
-                y="52" 
-                width="45" 
-                height="15" 
+                x="30" 
+                y="20" 
+                width="50" 
+                height="12" 
                 fill="#ffffff" 
                 stroke="#000" 
                 stroke-width="2.5" 
@@ -1408,10 +1739,10 @@ export default {
               />
               
               <text 
-                x="43" 
-                y="62" 
+                x="55" 
+                y="28" 
                 text-anchor="middle" 
-                font-size="10" 
+                font-size="9" 
                 font-weight="bold" 
                 fill="#000"
                 font-family="Arial, sans-serif"
@@ -1584,6 +1915,282 @@ Location: {{ shipment.unload_location || 'Anbar_Salon_Tolid' }}</title>
           </text>
         </g>
       </svg>
+    </div>
+
+    <!-- Inventory Details Dialog -->
+    <div v-if="showInventoryDialog" class="inventory-dialog-overlay" @click.self="closeInventoryDialog">
+      <div class="inventory-dialog">
+        <!-- Dialog Header -->
+        <div class="dialog-header" :class="{ 'header-green': dialogType === 'products', 'header-orange': dialogType !== 'products' }">
+          <h2>
+            <span v-if="dialogType === 'products'">📦 Products Inventory</span>
+            <span v-else-if="dialogType === 'profiles'">📋 Profiles</span>
+            <span v-else>🧱 Raw Materials</span>
+          </h2>
+          <h3>{{ formatWarehouseName(selectedWarehouse) }}</h3>
+          <button class="close-btn" @click="closeInventoryDialog">✕</button>
+        </div>
+        
+        <!-- Loading State -->
+        <div v-if="loadingDetails" class="dialog-loading">
+          <div class="spinner"></div>
+          <p>Loading data...</p>
+        </div>
+        
+        <!-- Dialog Content -->
+        <div v-else-if="selectedWarehouseDetails" class="dialog-content">
+          
+          <!-- PRODUCTS VIEW (Green Circle) -->
+          <template v-if="dialogType === 'products'">
+            <!-- Summary Stats -->
+            <div class="summary-stats">
+              <div class="stat-box stat-green">
+                <span class="stat-value">{{ selectedWarehouseDetails.data.summary?.total_reels || 0 }}</span>
+                <span class="stat-label">Total Reels</span>
+              </div>
+              <div class="stat-box stat-blue">
+                <span class="stat-value">{{ (selectedWarehouseDetails.data.summary?.total_products_weight_tons || 0).toFixed(2) }}t</span>
+                <span class="stat-label">Total Weight</span>
+              </div>
+            </div>
+            
+            <!-- No Products Message -->
+            <div v-if="!selectedWarehouseDetails.data.reels_by_width || selectedWarehouseDetails.data.reels_by_width.length === 0" class="no-data-section">
+              <p>📦 No products found in this warehouse</p>
+            </div>
+            
+            <!-- Cylinders Grid - Products by Width -->
+            <div class="visualization-container" v-if="selectedWarehouseDetails.data.reels_by_width && selectedWarehouseDetails.data.reels_by_width.length > 0">
+              <h4>Products by Width</h4>
+              <div class="cylinders-grid">
+                <div 
+                  v-for="(item, index) in selectedWarehouseDetails.data.reels_by_width" 
+                  :key="'width-' + index"
+                  class="cylinder-item"
+                >
+                  <svg :height="getCylinderHeight(item.count, getMaxCount(selectedWarehouseDetails.data.reels_by_width)) + 50" width="80" class="cylinder-svg">
+                    <!-- Cylinder top ellipse -->
+                    <ellipse 
+                      cx="40" 
+                      cy="20" 
+                      rx="30" 
+                      ry="10" 
+                      fill="#4CAF50" 
+                      stroke="#2E7D32" 
+                      stroke-width="2"
+                    />
+                    <!-- Cylinder body -->
+                    <rect 
+                      x="10" 
+                      y="20" 
+                      width="60" 
+                      :height="getCylinderHeight(item.count, getMaxCount(selectedWarehouseDetails.data.reels_by_width))"
+                      fill="#66BB6A" 
+                      stroke="#2E7D32" 
+                      stroke-width="2"
+                    />
+                    <!-- Cylinder bottom ellipse -->
+                    <ellipse 
+                      cx="40" 
+                      :cy="20 + getCylinderHeight(item.count, getMaxCount(selectedWarehouseDetails.data.reels_by_width))" 
+                      rx="30" 
+                      ry="10" 
+                      fill="#4CAF50" 
+                      stroke="#2E7D32" 
+                      stroke-width="2"
+                    />
+                    <!-- Count text on cylinder -->
+                    <text 
+                      x="40" 
+                      :y="20 + getCylinderHeight(item.count, getMaxCount(selectedWarehouseDetails.data.reels_by_width)) / 2 - 5"
+                      text-anchor="middle" 
+                      fill="#fff" 
+                      font-size="14" 
+                      font-weight="bold"
+                    >
+                      {{ item.count }}
+                    </text>
+                    <!-- Weight text on cylinder -->
+                    <text 
+                      x="40" 
+                      :y="20 + getCylinderHeight(item.count, getMaxCount(selectedWarehouseDetails.data.reels_by_width)) / 2 + 12"
+                      text-anchor="middle" 
+                      fill="#fff" 
+                      font-size="10"
+                    >
+                      {{ item.total_weight_tons }}t
+                    </text>
+                  </svg>
+                  <div class="cylinder-label">
+                    <span class="width-value">{{ item.width }}mm</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+          
+          <!-- RAW MATERIALS VIEW (Orange Circle) -->
+          <template v-else-if="dialogType === 'rawMaterials'">
+            <!-- Summary Stats -->
+            <div class="summary-stats">
+              <div class="stat-box stat-orange">
+                <span class="stat-value">{{ selectedWarehouseDetails.data.summary?.total_raw_materials || 0 }}</span>
+                <span class="stat-label">Total Raw Materials</span>
+              </div>
+              <div class="stat-box stat-blue">
+                <span class="stat-value">{{ (selectedWarehouseDetails.data.summary?.total_raw_materials_weight_tons || 0).toFixed(2) }}t</span>
+                <span class="stat-label">Total Weight</span>
+              </div>
+            </div>
+            
+            <!-- No Raw Materials Message -->
+            <div v-if="!selectedWarehouseDetails.data.raw_materials_by_name || selectedWarehouseDetails.data.raw_materials_by_name.length === 0" class="no-data-section">
+              <p>🧱 No raw materials found in this warehouse</p>
+            </div>
+            
+            <!-- Cubes Grid - Raw Materials by Name -->
+            <div class="visualization-container" v-if="selectedWarehouseDetails.data.raw_materials_by_name && selectedWarehouseDetails.data.raw_materials_by_name.length > 0">
+              <h4>Raw Materials</h4>
+              <div class="cubes-grid">
+                <div 
+                  v-for="(item, index) in selectedWarehouseDetails.data.raw_materials_by_name" 
+                  :key="'material-' + index"
+                  class="cube-item"
+                >
+                  <svg :width="getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.raw_materials_by_name)) + 20" :height="getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.raw_materials_by_name)) + 30" class="cube-svg">
+                    <g :transform="`translate(10, 10)`">
+                      <!-- Cube - Front face -->
+                      <rect 
+                        x="0" 
+                        :y="15" 
+                        :width="getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.raw_materials_by_name)) - 15"
+                        :height="getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.raw_materials_by_name)) - 15"
+                        fill="#FF9800" 
+                        stroke="#E65100" 
+                        stroke-width="2"
+                      />
+                      <!-- Cube - Top face -->
+                      <path 
+                        :d="`M 0,15 L 15,0 L ${getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.raw_materials_by_name))},0 L ${getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.raw_materials_by_name)) - 15},15 Z`"
+                        fill="#FFB74D" 
+                        stroke="#E65100" 
+                        stroke-width="2"
+                      />
+                      <!-- Cube - Right face -->
+                      <path 
+                        :d="`M ${getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.raw_materials_by_name)) - 15},15 L ${getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.raw_materials_by_name))},0 L ${getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.raw_materials_by_name))},${getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.raw_materials_by_name)) - 15} L ${getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.raw_materials_by_name)) - 15},${getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.raw_materials_by_name))} Z`"
+                        fill="#F57C00" 
+                        stroke="#E65100" 
+                        stroke-width="2"
+                      />
+                      <!-- Count text -->
+                      <text 
+                        :x="(getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.raw_materials_by_name)) - 15) / 2"
+                        :y="15 + (getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.raw_materials_by_name)) - 15) / 2 - 5"
+                        text-anchor="middle" 
+                        fill="#fff" 
+                        font-size="16" 
+                        font-weight="bold"
+                      >
+                        {{ item.count }}
+                      </text>
+                      <!-- Weight text -->
+                      <text 
+                        :x="(getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.raw_materials_by_name)) - 15) / 2"
+                        :y="15 + (getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.raw_materials_by_name)) - 15) / 2 + 12"
+                        text-anchor="middle" 
+                        fill="#fff" 
+                        font-size="11"
+                      >
+                        {{ item.total_weight_tons }}t
+                      </text>
+                    </g>
+                  </svg>
+                  <div class="cube-label">
+                    <span class="material-name">{{ item.material_name || 'Unknown' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+          
+          <!-- PROFILES VIEW (Orange Circle for Anbar_Salon_Tolid) -->
+          <template v-else-if="dialogType === 'profiles'">
+            <!-- Summary Stats -->
+            <div class="summary-stats">
+              <div class="stat-box stat-purple">
+                <span class="stat-value">{{ selectedWarehouseDetails.data.summary?.total_profiles || 0 }}</span>
+                <span class="stat-label">Total Profiles</span>
+              </div>
+            </div>
+            
+            <!-- No Profiles Message -->
+            <div v-if="!selectedWarehouseDetails.data.profiles || selectedWarehouseDetails.data.profiles.length === 0" class="no-data-section">
+              <p>📋 No profiles found in this warehouse</p>
+            </div>
+            
+            <!-- Cubes Grid - Profiles -->
+            <div class="visualization-container" v-if="selectedWarehouseDetails.data.profiles && selectedWarehouseDetails.data.profiles.length > 0">
+              <h4>Profiles</h4>
+              <div class="cubes-grid">
+                <div 
+                  v-for="(item, index) in selectedWarehouseDetails.data.profiles" 
+                  :key="'profile-' + index"
+                  class="cube-item"
+                >
+                  <svg :width="getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.profiles)) + 20" :height="getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.profiles)) + 30" class="cube-svg">
+                    <g :transform="`translate(10, 10)`">
+                      <!-- Cube - Front face (purple for profiles) -->
+                      <rect 
+                        x="0" 
+                        :y="15" 
+                        :width="getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.profiles)) - 15"
+                        :height="getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.profiles)) - 15"
+                        fill="#9C27B0" 
+                        stroke="#6A1B9A" 
+                        stroke-width="2"
+                      />
+                      <!-- Cube - Top face -->
+                      <path 
+                        :d="`M 0,15 L 15,0 L ${getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.profiles))},0 L ${getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.profiles)) - 15},15 Z`"
+                        fill="#BA68C8" 
+                        stroke="#6A1B9A" 
+                        stroke-width="2"
+                      />
+                      <!-- Cube - Right face -->
+                      <path 
+                        :d="`M ${getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.profiles)) - 15},15 L ${getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.profiles))},0 L ${getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.profiles))},${getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.profiles)) - 15} L ${getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.profiles)) - 15},${getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.profiles))} Z`"
+                        fill="#7B1FA2" 
+                        stroke="#6A1B9A" 
+                        stroke-width="2"
+                      />
+                      <!-- Count text (only count, no weight for profiles) -->
+                      <text 
+                        :x="(getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.profiles)) - 15) / 2"
+                        :y="15 + (getCubeSize(item.count, getMaxCount(selectedWarehouseDetails.data.profiles)) - 15) / 2 + 5"
+                        text-anchor="middle" 
+                        fill="#fff" 
+                        font-size="18" 
+                        font-weight="bold"
+                      >
+                        {{ item.count }}
+                      </text>
+                    </g>
+                  </svg>
+                  <div class="cube-label">
+                    <span class="profile-name">{{ item.profile_name }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+          
+          <!-- No Data State -->
+          <div v-else class="no-data">
+            <p>No data available</p>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Right Sidebar with Title, Buttons, and Footer -->
@@ -1898,20 +2505,47 @@ Location: {{ shipment.unload_location || 'Anbar_Salon_Tolid' }}</title>
   transition: all 0.3s ease;
 }
 
-.warehouse-badges g:hover circle {
-  r: 26;
+.warehouse-badges > g:hover circle {
+  r: 20;
   opacity: 1;
-  filter: drop-shadow(0 0 12px rgba(102, 126, 234, 0.9));
+}
+
+/* Products circle (green) hover effect */
+.warehouse-badges > g:hover > g:first-child circle {
+  filter: drop-shadow(0 0 12px rgba(76, 175, 80, 0.8));
+}
+
+/* Raw materials circle (orange) hover effect */
+.warehouse-badges > g:hover > g:nth-child(2) circle {
+  filter: drop-shadow(0 0 12px rgba(255, 152, 0, 0.8));
 }
 
 .warehouse-badges text {
   pointer-events: none;
   user-select: none;
-  transition: font-size 0.3s ease;
+  transition: all 0.3s ease;
 }
 
-.warehouse-badges g:hover text {
-  font-size: 16px;
+.warehouse-badges > g:hover text {
+  font-size: 11px;
+}
+
+/* Animation for warehouse badges on load */
+@keyframes badge-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.warehouse-badges > g > g {
+  animation: badge-pulse 2s ease-in-out infinite;
+}
+
+.warehouse-badges > g > g:nth-child(2) {
+  animation-delay: 0.3s;
 }
 
 .data-info {
@@ -1979,6 +2613,293 @@ Location: {{ shipment.unload_location || 'Anbar_Salon_Tolid' }}</title>
     padding: 8px 12px;
     font-size: 11px;
   }
+}
+
+/* ============================================ */
+/* INVENTORY DIALOG STYLES */
+/* ============================================ */
+
+.inventory-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+}
+
+.inventory-dialog {
+  background: #fff;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 900px;
+  max-height: 85vh;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: dialog-enter 0.3s ease-out;
+}
+
+@keyframes dialog-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.dialog-header {
+  padding: 20px 25px;
+  position: relative;
+  color: #fff;
+}
+
+.dialog-header.header-green {
+  background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+}
+
+.dialog-header.header-orange {
+  background: linear-gradient(135deg, #FF9800 0%, #E65100 100%);
+}
+
+.dialog-header h2 {
+  margin: 0 0 5px 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.dialog-header h3 {
+  margin: 0;
+  font-size: 16px;
+  opacity: 0.9;
+  font-weight: 400;
+}
+
+.close-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+.dialog-loading {
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.dialog-loading .spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #4CAF50;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px;
+}
+
+.dialog-content {
+  padding: 25px;
+  overflow-y: auto;
+  max-height: calc(85vh - 120px);
+}
+
+/* Summary Stats */
+.summary-stats {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+}
+
+.stat-box {
+  flex: 1;
+  min-width: 150px;
+  padding: 20px;
+  border-radius: 12px;
+  text-align: center;
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+}
+
+.stat-box.stat-green {
+  background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%);
+}
+
+.stat-box.stat-orange {
+  background: linear-gradient(135deg, #FF9800 0%, #FFB74D 100%);
+}
+
+.stat-box.stat-blue {
+  background: linear-gradient(135deg, #2196F3 0%, #64B5F6 100%);
+}
+
+.stat-box.stat-purple {
+  background: linear-gradient(135deg, #9C27B0 0%, #BA68C8 100%);
+}
+
+.stat-value {
+  display: block;
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+
+.stat-label {
+  display: block;
+  font-size: 13px;
+  opacity: 0.9;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Visualization Container */
+.visualization-container {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.visualization-container h4 {
+  margin: 0 0 20px 0;
+  font-size: 16px;
+  color: #333;
+  border-bottom: 2px solid #e0e0e0;
+  padding-bottom: 10px;
+}
+
+/* Cylinders Grid */
+.cylinders-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 25px;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.cylinder-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 90px;
+}
+
+.cylinder-svg {
+  display: block;
+}
+
+.cylinder-label {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.width-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2E7D32;
+  background: #E8F5E9;
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+/* Cubes Grid */
+.cubes-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 25px;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.cube-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 100px;
+}
+
+.cube-svg {
+  display: block;
+}
+
+.cube-label {
+  margin-top: 10px;
+  text-align: center;
+  max-width: 120px;
+}
+
+.material-name, .profile-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #E65100;
+  background: #FFF3E0;
+  padding: 4px 10px;
+  border-radius: 8px;
+  display: inline-block;
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+.profile-name {
+  color: #6A1B9A;
+  background: #F3E5F5;
+}
+
+.no-data {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+}
+
+.no-data-section {
+  text-align: center;
+  padding: 30px;
+  background: #f5f5f5;
+  border-radius: 12px;
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.no-data-section p {
+  margin: 0;
+}
+
+/* Clickable circles */
+.clickable-circle {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clickable-circle:hover {
+  transform: scale(1.15);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+}
+
+.clickable-circle:hover circle {
+  stroke-width: 4;
 }
 </style>
 

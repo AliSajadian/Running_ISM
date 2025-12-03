@@ -249,11 +249,11 @@ class Shipments(models.Model):
     invoice_status = models.CharField(max_length=255, choices=[('NA', 'NA'), ('Sent', 'Sent'), ('Received', 'Received')], null=True)
     payment_status = models.CharField(max_length=255, choices=[('Terms', 'Terms'), ('Paid', 'Paid')], null=True)
 
-    invoice_date = models.DateTimeField(blank=True, null=True)
-    stock_receipt_voucher_number = models.CharField(max_length=255, null=True)
-    stock_receipt_voucher_date = models.DateTimeField(blank=True, null=True)
-    stock_transfer_voucher_number = models.CharField(max_length=255, null=True)
-    stock_transfer_voucher_date = models.DateTimeField(blank=True, null=True)
+    # invoice_date = models.DateTimeField(blank=True, null=True)
+    # stock_receipt_voucher_number = models.CharField(max_length=255, null=True)
+    # stock_receipt_voucher_date = models.DateTimeField(blank=True, null=True)
+    # stock_transfer_voucher_number = models.CharField(max_length=255, null=True)
+    # stock_transfer_voucher_date = models.DateTimeField(blank=True, null=True)
 
     document_info = models.TextField(null=True)
     comments = models.TextField(null=True)

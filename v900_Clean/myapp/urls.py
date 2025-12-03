@@ -60,7 +60,8 @@ urlpatterns = [
     path('api/logWeightAdjustment', log_weight_adjustment, name='log_weight_adjustment'),
     path("api/getFactoryMapData", get_factory_map_data),
     path("api/getWarehouseInventory", get_warehouse_inventory),
-
+    path('api/getAnbarSalonTolidDetails', get_anbar_salon_tolid_details, name='get_anbar_salon_tolid_details'),
+    path('api/getWarehouseInventoryDetails', get_warehouse_inventory_details, name='get_warehouse_inventory_details'),
     # Following paths are related to Pages:
 
     path("", all_pages),

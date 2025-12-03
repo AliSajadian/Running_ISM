@@ -95,8 +95,9 @@ export default {
         "quality": this.forms.Quality.value,
         "forklift_driver": this.forms.forklift_driver.value
       };
+      console.log('params:', params)
       const response = await this.axios.post('/myapp/api/unload', {}, {params: params})
-      console.log(response.data); // Access response data
+      console.log('response.data: ', response.data); // Access response data
       if (response.data['status'] == 'success'){
         this.success = true
       }else {
