@@ -15,48 +15,49 @@ export default {
       // Location coordinates mapping (matching SVG positions)
       locationCoordinates: {
         'Entrance1': { x: 320, y: 760 },  // Left entrance - moved under W1
-        'Weight_Station_1': { x: 320, y: 580 },  // Moved up vertically
-        'Weight_Station_2': { x: 1140, y: 410 },
+        'Weight_Station_1': { x: 390, y: 540 },  // Moved up vertically
+        'Weight_Station_2': { x: 1170, y: 370 },
         'Entrance2': { x: 1070, y: 760 },  // Right entrance - moved to right
         'Anbar_PAK': { x: 1410, y: 620 },
-        'Anbar_Khamir_Kordan': { x: 1275, y: 330 },
+        'Anbar_Khamir_Kordan': { x: 1070, y: 200 },
         'Anbar_Khamir_Ghadim': { x: 805, y: 150 },
         'Anbar_Parvandeh': { x: 335, y: 94 },
         'Anbar_Koochak': { x: 335, y: 170 },
-        'Anbar_Sangin': { x: 845, y: 425 },
+        'Anbar_Sangin': { x: 660, y: 560 },
         'Anbar_Salon_Tolid': { x: 140, y: 237 },
         'Anbar_Akhal': { x: 200, y: 905 },
         'Loading_Unloading': { x: 510, y: 610 },
-        'Office': { x: 1224, y: 724 },
+        'Office': { x: 1070, y: 724 },
         'QC': { x: 845, y: 580 },
       },
       truckStopPositions: {
-        'Entrance': { x: 320, y: 760 },  // Left entrance - moved under W1
-        'Weight_Station_1': { x: 320, y: 700 },
-        'Anbar_Salon_Tolid': { x: 320, y: 237 },
-        'Anbar_Akhal': { x: 120, y: 830 },
+        'Entrance1': { x: 390, y: 760 },  // Left entrance - moved under W1
+        'Weight_Station_1': { x: 390, y: 540 },
+        'Anbar_Salon_Tolid': { x: 350, y: 300 },
+        'Anbar_Akhal': { x: 160, y: 825 },
         'Anbar_PAK': { x: 1410, y: 820 },
-        'Anbar_Khamir_Kordan': { x: 1140, y: 330 },
+        'Anbar_Khamir_Kordan': { x: 1070, y: 200 },
+        'Anbar_Mohavate_Kardan': { x: 1070, y: 130 },
         'Anbar_Khamir_Ghadim': { x: 805, y: 150 },
-        'Anbar_Parvandeh': { x: 335, y: 94 },
-        'Anbar_Koochak': { x: 335, y: 170 },
-        'Anbar_Sangin': { x: 820, y: 425 },
-        'Anbar_Salon_Tolid': { x: 140, y: 237 },
-        'Anbar_Akhal': { x: 200, y: 905 },
-        'Loading_Unloading': { x: 510, y: 610 },
-        'Weight_Station_2': { x: 1140, y: 410 },
-        'Office': { x: 1224, y: 724 },
+        'Anbar_Mohavate_Homayoun': { x: 550, y: 150 },
+        'Anbar_Parvandeh': { x: 355, y: 94 },
+        'Anbar_Koochak': { x: 355, y: 170 },
+        'Anbar_Sangin': { x: 660, y: 560 },
+        'Loading_Unloading': { x: 390, y: 540 },
+        'Weight_Station_2': { x: 1170, y: 370 },
+        'Office': { x: 1070, y: 724 },
+        'Entrance2': { x: 1070, y: 760 },  // Right entrance - moved to right
       },
       // Warehouse badge positions
       warehouseBadgePositions: {
         'Anbar_PAK': { x: 1410, y: 470 },
-        'Anbar_Sangin': { x: 845, y: 350 },
-        'Anbar_Khamir_Kordan': { x: 1275, y: 25 },
-        'Anbar_Khamir_Ghadim': { x: 805, y: 75 },
-        'Anbar_Parvandeh': { x: 335, y: 75 },
-        'Anbar_Koochak': { x: 335, y: 125 },
-        'Anbar_Salon_Tolid': { x: 140, y: 20 },
-        'Anbar_Akhal': { x: 200, y: 870 },
+        'Anbar_Sangin': { x: 845, y: 425 },
+        'Anbar_Khamir_Kordan': { x: 1320, y: 75 },
+        'Anbar_Khamir_Ghadim': { x: 655, y: 20 },
+        'Anbar_Parvandeh': { x: 360, y: 75 },
+        'Anbar_Koochak': { x: 360, y: 125 },
+        'Anbar_Salon_Tolid': { x: 130, y: 20 },
+        'Anbar_Akhal': { x: 300, y: 860 },
       },
       truckAnimations: {}, // Store animated positions { truckId: { currentX, currentY, rotation, animating } }
       animationFrames: {},  // Store RAF IDs for cleanup
@@ -67,6 +68,13 @@ export default {
       selectedWarehouse: null,
       selectedWarehouseDetails: null,
       loadingDetails: false,
+
+      // ADD: Cargo Dialog state
+      showCargoDialog: false,
+      selectedShipment: null,
+      loadingCargoDetails: false,
+
+      truckAudios: {},  // Audio instance per truck
     }
   },
   computed: {
@@ -123,6 +131,15 @@ export default {
     console.log('FactoryMap component mounted successfully!')
     this.fetchMapData()
     this.startPolling()
+    // this.initTruckAudio()
+
+    document.addEventListener('click', () => {
+      if (this.truckAudio) {
+        this.truckAudio.play().then(() => {
+          this.truckAudio.pause();
+        }).catch(() => {});
+      }
+    }, { once: true })
   },
   beforeUnmount() {
     console.log('FactoryMap component unmounting')
@@ -131,8 +148,9 @@ export default {
     // Cancel all animations
     Object.values(this.animationFrames).forEach(frameId => {
       cancelAnimationFrame(frameId);
-  });
+    });
 
+    this.stopAllTruckSounds()
   },
   methods: {
     /**
@@ -263,17 +281,35 @@ export default {
       const status = shipment.status
       const type = shipment.shipment_type
       const unloadLocation = shipment.unload_location
+      const material_type = shipment.material_type;
       
       // Determine START position based on workflow:
       
       // Registered → START at Entrance
       if (status === 'Registered') {
-        return this.truckStopPositions['Entrance'] || { x: 480, y: 775 }
+        if(type === 'Incoming') {
+          if (material_type && material_type.indexOf('آخال') !== -1) {
+            return this.truckStopPositions['Entrance2'] || { x: 1080, y: 800 }
+          }
+          else {
+            return this.truckStopPositions['Entrance1'] || { x: 390, y: 800 }
+          }
+        } else {
+          return this.truckStopPositions['Entrance1'] || { x: 390, y: 800 }
+        }
       }
       
       // LoadingUnloading → Already at warehouse from previous step
       if (status === 'LoadingUnloading') {
-        return this.truckStopPositions['Weight_Station_1'] || { x: 320, y: 610 }
+        if (type === 'Incoming') {
+          if(material_type && material_type.indexOf('آخال') !== -1) {
+            return this.truckStopPositions['Weight_Station_2'] || { x: 1170, y: 370 }
+          } else {
+            return this.truckStopPositions['Weight_Station_1'] || { x: 390, y: 540 }
+          }
+        } else {
+            return this.truckStopPositions['Weight_Station_1'] || { x: 390, y: 540 }
+        }
       }
       
       // LoadedUnloaded → START at warehouse (where it was loading)
@@ -281,23 +317,43 @@ export default {
         if (type === 'Incoming' && unloadLocation) {
           return this.truckStopPositions[unloadLocation] || this.truckStopPositions['Loading_Unloading']
         } else if (type === 'Outgoing') {
-          return this.truckStopPositions['Anbar_Salon_Tolid'] || { x: 320, y: 237 }
+          return this.truckStopPositions['Anbar_Salon_Tolid'] || { x: 350, y: 300 }
         }
-        return this.truckStopPositions['Weight_Station_1'] || { x: 320, y: 610 }
+        return this.truckStopPositions['Weight_Station_1'] || { x: 390, y: 540 }
       }
       
       // Office → START at Weight Station 2
       if (status === 'Office') {
-        return this.truckStopPositions['Weight_Station_2'] || { x: 1140, y: 410 }
+        if(type === 'Incoming') {
+          if(material_type && material_type.indexOf('آخال') !== -1) {
+            return this.truckStopPositions['Entrance2'] || { x: 1170, y: 370 }
+          }
+          else {
+            return this.truckStopPositions['Entrance1'] || { x: 390, y: 540 }
+          }
+        }
+        else {
+          return this.truckStopPositions['Weight_Station_2'] || { x: 390, y: 540 }
+        }
       }
       
       // Delivered → START at Office
       if (status === 'Delivered') {
-        return this.truckStopPositions['Office'] || { x: 1224, y: 724 }
+        if(type === 'Incoming') {
+          if(material_type && material_type.indexOf('آخال') !== -1) {
+            return this.truckStopPositions['Entrance2'] || { x: 1070, y: 724 }
+          }
+          else {
+            return this.truckStopPositions['Entrance1'] || { x: 390, y: 724 }
+          }
+        } 
+        else {
+          return this.truckStopPositions['Entrance1'] || { x: 390, y: 724 }
+        }
       }
       
       // Default
-      return this.truckStopPositions['Entrance'] || { x: 480, y: 775 }
+      return this.truckStopPositions['Entrance1'] || { x: 390, y: 775 }
     },
     
     /**
@@ -308,37 +364,82 @@ export default {
       const type = shipment.shipment_type
       const location = shipment.location
       const unloadLocation = shipment.unload_location
+      const material_type = shipment.material_type;
       
       // Determine END position based on workflow:
       
       // 1. Registered → END at Weight Station 1 (stops and waits)
       if (status === 'Registered') {
-        return this.truckStopPositions['Weight_Station_1'] || { x: 320, y: 610 }
+        if(type === 'Incoming') {
+          if(material_type && material_type.indexOf('آخال') !== -1) {
+            return this.truckStopPositions['Weight_Station_2'] || { x: 1170, y: 370 }
+          }
+          else {
+            return this.truckStopPositions['Weight_Station_1'] || { x: 390, y: 560 }
+          }
+        } else {
+          return this.truckStopPositions['Weight_Station_1'] || { x: 390, y: 560 }
+        }
       }
       
       // 2. LoadingUnloading → END at warehouse (stops for loading)
       if (status === 'LoadingUnloading') {
-        if (type === 'Incoming' && unloadLocation) {
-          return this.truckStopPositions[unloadLocation] || this.truckStopPositions['Loading_Unloading']
-        } else if (type === 'Outgoing') {
-          return this.truckStopPositions['Anbar_Salon_Tolid'] || { x: 320, y: 237 }
-        }
-        return this.truckStopPositions['Loading_Unloading'] || { x: 510, y: 610 }
+        if (type === 'Incoming') {
+          if(material_type && material_type.indexOf('آخال') !== -1) {
+            switch(unloadLocation) {
+                case 'Anbar_Khamir_Kordan':
+                  return this.truckStopPositions['Anbar_Khamir_Kordan'] || { x: 200, y: 1170 }
+                case 'Anbar_Mohavate_Kardan':
+                  return this.truckStopPositions['Anbar_Mohavate_Kardan'] || { x: 150, y: 1050 }
+                case 'Anbar_Akhal':
+                  return this.truckStopPositions['Anbar_Akhal'] || { x: 120, y: 830 }
+                default: 
+                  return this.truckStopPositions['Weight_Station_2'] || { x: 1170, y: 370 }
+            }
+          }
+          else if(material_type && material_type.indexOf('لوله مقوایی') !== -1) {
+            return this.truckStopPositions['Anbar_Salon_Tolid'] || { x: 350, y: 237 }
+          }
+          else
+            return this.truckStopPositions[unloadLocation] || this.truckStopPositions['Loading_Unloading']
+        } 
+        else {
+          switch(unloadLocation) {
+            case 'Anbar_Salon_Tolid':
+              return this.truckStopPositions['Anbar_Salon_Tolid'] || { x: 350, y: 300 }
+            case 'Anbar_Sangin':
+              return this.truckStopPositions['Anbar_Sangin'] || { x: 660, y: 560 }
+            case 'Anbar_Khamir_Ghadim':
+              return this.truckStopPositions['Anbar_Khamir_Ghadim'] || { x: 700, y: 150 }
+            default: 
+              return this.truckStopPositions['Weight_Station_1'] || { x: 390, y: 560 }
+          }
+        }        
       }
       
       // 3. LoadedUnloaded → END at Weight Station 2 (stops and waits)
       if (status === 'LoadedUnloaded') {
-        return this.truckStopPositions['Weight_Station_2'] || { x: 1140, y: 410 }
+        if(material_type && material_type.indexOf('آخال') !== -1) {
+          return this.truckStopPositions['Weight_Station_2'] || { x: 1170, y: 370 }
+        }
+        else {
+          return this.truckStopPositions['Weight_Station_1'] || { x: 350, y: 560 }
+        }
       }
       
       // 4. Office → END at Office
       if (status === 'Office') {
-        return this.truckStopPositions['Office'] || { x: 1224, y: 724 }
+        if(material_type && material_type.indexOf('آخال') !== -1) {
+          return this.truckStopPositions['Entrance2'] || { x: 1050, y: 760 }
+        }
+        else {
+          return this.truckStopPositions['Entrance1'] || { x: 400, y: 760 }
+        }
       }
       
       // 5. Delivered → END at street (exits)
       if (status === 'Delivered') {
-        return { x: 100, y: 820 }
+        return { x: 0, y: 820 }
       }
       
       // Use location field if set
@@ -372,7 +473,7 @@ export default {
 
       if (location === 'Loading_Unloading') {
         if (type === 'Incoming') {
-          return 90
+          return 0
         } else if (type === 'Outgoing') {
           return 0
         }
@@ -398,6 +499,24 @@ export default {
         return { fill: '#90ee90', stroke: '#228b22' } // Green
       }
       return { fill: '#90caf9', stroke: '#1976d2' } // Blue for outgoing
+    },
+
+    /**
+     * Determine if truck should show cargo based on shipment type and status
+     */
+    truckHasCargo(shipment) {
+      const type = shipment.shipment_type;
+      const status = shipment.status;
+      
+      if (type === 'Incoming') {
+        // Incoming: has cargo when arriving and during unloading
+        // Loses cargo after being unloaded
+        return status === 'Registered' || status === 'LoadingUnloading';
+      } else {
+        // Outgoing: no cargo when arriving
+        // Gets cargo after being loaded
+        return status === 'LoadedUnloaded' || status === 'Office' || status === 'Delivered';
+      }
     },
 
     /**
@@ -461,6 +580,9 @@ export default {
       const truckId = shipment.id;
       let currentWaypointIndex = 0;
       
+      // START SOUND FOR THIS TRUCK
+      this.playTruckSound(truckId);
+
       const animateSegment = () => {
         if (currentWaypointIndex >= waypoints.length - 1) {
           // Animation complete
@@ -472,6 +594,10 @@ export default {
               this.truckAnimations[truckId].exited = true;
             }          
           }
+
+          // STOP SOUND FOR THIS TRUCK
+          this.stopTruckSound(truckId);
+
           return;
         }
         
@@ -492,21 +618,54 @@ export default {
           const currentX = start.x + (end.x - start.x) * easeProgress;
           const currentY = start.y + (end.y - start.y) * easeProgress;
           
-          const rotation = Math.atan2(end.y - start.y, end.x - start.x) * (180 / Math.PI);
-
-          // Determine if moving left (for flipping the truck image)
           const dx = end.x - start.x;
+          const dy = end.y - start.y;
+          
+          // Calculate rotation based on movement direction
+          let rotation;
           const movingLeft = dx < 0;
-          console.log('🎬 movingLeft', movingLeft)
-          // Update animation state
+
+          if (Math.abs(dy) > Math.abs(dx) * 2) {
+            // Primarily vertical movement
+            rotation = dy < 0 ? -90 : 90;  // Up = -90°, Down = 90°
+          } else if (Math.abs(dx) > Math.abs(dy) * 2) {
+            // Primarily horizontal movement
+            rotation = dx < 0 ? 180 : 0;  // Left = 180°, Right = 0°
+          } else {
+            // Diagonal movement - calculate actual angle
+            rotation = Math.atan2(dy, dx) * (180 / Math.PI);
+          }
+
+          // Adjust rotation for ALL left-moving trucks (they are flipped with scale(-1, 1))
+          // Formula: after flip, visual_angle = 180° + applied_rotation
+          // So: applied_rotation = target_angle - 180°
+          if (movingLeft) {
+            rotation = rotation - 180;
+          }
           this.truckAnimations[truckId] = {
             currentX,
             currentY,
-            rotation: movingLeft ? 0 : rotation,  // No rotation needed anymore
+            rotation,
             animating: true,
             exited: false,
-            movingLeft: movingLeft  // Track direction for flipping
+            movingLeft
           };
+
+          // const rotation = Math.atan2(end.y - start.y, end.x - start.x) * (180 / Math.PI);
+
+          // // Determine if moving left (for flipping the truck image)
+          // const dx = end.x - start.x;
+          // const movingLeft = dx < 0;
+          // console.log('🎬 movingLeft', movingLeft)
+          // // Update animation state
+          // this.truckAnimations[truckId] = {
+          //   currentX,
+          //   currentY,
+          //   rotation: movingLeft ? 0 : rotation,  // No rotation needed anymore
+          //   animating: true,
+          //   exited: false,
+          //   movingLeft: movingLeft  // Track direction for flipping
+          // };
           
           if (progress < 1) {
             this.animationFrames[truckId] = requestAnimationFrame(animate);
@@ -531,94 +690,143 @@ export default {
       const status = shipment.status;
       const type = shipment.shipment_type;
       const unload_location = shipment.unload_location;
+      const material_type = shipment.material_type;
 
       switch(status) {
         case 'Registered':
-          return [
-            currentPos || { x: 320, y: 760 },  // Entrance
-            { x: 320, y: 760 },  // Mid 670
-            { x: 320, y: 580 }   // W1
-          ];
+          if(type === 'Incoming') {
+            if(material_type && material_type.indexOf('آخال') !== -1) {
+              return [
+                { x: 0, y: 820 },     // Street
+                { x: 1050, y: 820 },  // Entrance2
+                { x: 1170, y: 370 }   // W2          
+              ];
+            }
+            else {
+              return [
+                { x: 0, y: 820 },    // Street
+                { x: 390, y: 820 },  // Entrance1
+                { x: 390, y: 540 }   // W1
+              ];
+            }
+          } else {
+            return [
+              { x: 0, y: 820 },    // Street
+              { x: 390, y: 820 },  // Entrance1
+              { x: 390, y: 540 }   // W1
+            ];
+          }
         case'LoadingUnloading':
           if (type === 'Incoming') {
-            switch(unload_location) {
-              case 'Anbar_Salon_Tolid':
+            if(material_type && material_type.indexOf('لوله مقوایی') !== -1) {
               return [
-                { x: 320, y: 580 },  // Mid 670
-                { x: 320, y: 260 }   // W1
+                { x: 390, y: 540 },  // W1
+                { x: 350, y: 260 }   // Anbar Salon Tolid
               ];
-            case 'Anbar_Sangin':
-              return [
-                { x: 320, y: 580 },   // w1
-                { x: 320, y: 310 },   // turn right towards anbar sangin
-                { x: 800, y: 310 },   // reach anbar sangin
-              ];
-            case 'Anbar_Koochak':
-              return [
-                { x: 320, y: 580 },  // W1
-                { x: 320, y: 260 },  // turn right towards anbar koochak
-                { x: 360, y: 260 },  // turn left towards anbar koochak
-                { x: 360, y: 150 },  // Anbar koochak
-              ];
-            case'Anbar_Parvandeh':
-              return [
-                { x: 320, y: 580 },  // W1
-                { x: 320, y: 260 },  // turn right towards anbar Parvandeh
-                { x: 360, y: 260 },  // turn left towards anbar Parvandeh
-                { x: 360, y: 120 },  // Anbar Parvandeh            
-              ];
-            case 'Anbar_Mohavath_Homayoun':
-              return [
-                { x: 320, y: 580 },  // W1
-                { x: 320, y: 260 },  // turn right towards anbar Mohavath_Homayoun
-                { x: 460, y: 260 },  // turn left towards anbar Mohavath_Homayoun
-                { x: 460, y: 200 },  // Anbar Mohavath_Homayoun            
-              ];
-            case 'Anbar_Khamir_Ghadim':
-              return [
-                { x: 320, y: 580 },  // W1
-                { x: 320, y: 260 },  // turn right towards anbar Mohavath_Homayoun
-                { x: 600, y: 260 },  // turn left towards anbar Mohavath_Homayoun
-                { x: 600, y: 150 },  // Anbar Mohavath_Homayoun            
-                ];
-            case 'Anbar_Muhvateh_Kardan':
-              return [
-                { x: 320, y: 580 },  // W1
-                { x: 320, y: 260 },  // turn right towards anbar Anbar_Khamir_Kordan
-                { x: 1100, y: 280 },  // turn right towards anbar enterance 2
-                { x: 1100, y: 180 },  // move backward to Anbar_Khamir_Kordan            
-              ];
-            case 'Anbar_Khamir_Kordan':
-              return [
-                { x: 320, y: 580 },  // W1
-                { x: 320, y: 260 },  // turn right towards anbar Anbar_Khamir_Kordan
-                { x: 1140, y: 280 },  // turn right towards anbar enterance 2
-                { x: 1140, y: 180 },  // move backward to Anbar_Khamir_Kordan            
-              ];
-            case 'Anbar_PAK':
-              return [
-                { x: 320, y: 580 },  // W1
-                { x: 320, y: 820 },   // towards out of factory
-                { x: 1320, y: 820 },  // Start from current or W1
-              ];
-            case 'Anbar_Akhal':
-              return [
-                { x: 320, y: 580 },  // W1
-                { x: 320, y: 830 },  // towards out of factory
-                { x: 120, y: 830 },  // Start from current or W1
-              ];
-            default: 
-              return [
-                { x: 320, y: 580 },  // W1
-              ]
+            }
+            else {
+              switch(unload_location) {
+                case 'Anbar_Salon_Tolid':
+                  return [
+                    { x: 390, y: 540 },  // W1
+                    { x: 350, y: 260 }   // W1
+                  ];
+                case 'Anbar_Sangin':
+                  return [
+                    { x: 390, y: 540 },  // W1
+                    { x: 350, y: 310 },   // turn right towards anbar sangin
+                    { x: 800, y: 310 },   // reach anbar sangin
+                  ];
+                case 'Anbar_Koochak':
+                  return [
+                    { x: 390, y: 540 },  // W1
+                    { x: 350, y: 260 },  // turn right towards anbar koochak
+                    { x: 360, y: 260 },  // turn left towards anbar koochak
+                    { x: 360, y: 150 },  // Anbar koochak
+                  ];
+                case'Anbar_Parvandeh':
+                  return [
+                    { x: 390, y: 540 },  // W1
+                    { x: 350, y: 260 },  // turn right towards anbar Parvandeh
+                    { x: 360, y: 260 },  // turn left towards anbar Parvandeh
+                    { x: 360, y: 120 },  // Anbar Parvandeh            
+                  ];
+                case 'Anbar_Mohavath_Homayoun':
+                  return [
+                    { x: 390, y: 540 },  // W1
+                    { x: 350, y: 260 },  // turn right towards anbar Mohavath_Homayoun
+                    { x: 460, y: 260 },  // turn left towards anbar Mohavath_Homayoun
+                    { x: 460, y: 200 },  // Anbar Mohavath_Homayoun            
+                  ];
+                case 'Anbar_Khamir_Ghadim':
+                  return [
+                    { x: 390, y: 540 },  // W1
+                    { x: 350, y: 260 },  // turn right towards anbar Mohavath_Homayoun
+                    { x: 600, y: 260 },  // turn left towards anbar Mohavath_Homayoun
+                    { x: 600, y: 150 },  // Anbar Mohavath_Homayoun            
+                    ];
+                case 'Anbar_Muhvateh_Kardan':
+                  return [
+                    { x: 1170, y: 370 },    // W2
+                    { x: 1170, y: 150 },    // Anbar Muhvateh Kordan  
+                  ];
+                case 'Anbar_Khamir_Kordan':
+                  return [
+                    { x: 1170, y: 370 },    // W2
+                    { x: 1170, y: 200 },    // Anbar KHamir Kordan  
+                  ];
+                case 'Anbar_PAK':
+                  return [
+                    { x: 390, y: 540 },  // W1
+                    { x: 350, y: 820 },  // towards out of factory
+                    { x: 1350, y: 820 }, // Start from current or W1
+                  ];
+                case 'Anbar_Akhal':
+                  return [
+                    { x: 390, y: 540 },  // W1
+                    { x: 350, y: 830 },  // towards out of factory
+                    { x: 120, y: 830 },  // Start from current or W1
+                  ];
+                default: 
+                  if(material_type && material_type.indexOf('آخال') !== -1) {
+                    return [
+                      { x: 1170, y: 370 }   // W2          
+                    ];
+                  }
+                  else {
+                    return [
+                      { x: 390, y: 540 }   // W1
+                    ];
+                  }
+              }
             }
           }
           else {
-            return [
-              currentPos || { x: 320, y: 580 },  // Start from current or W1
-              { x: 320, y: 580 },   // W1
-              { x: 320, y: 260 }   // Anbar salon tolid
-            ];
+            switch(unload_location) {
+                case 'Anbar_Salon_Tolid':
+                  return [
+                    { x: 390, y: 540 },  // Mid 670
+                    { x: 350, y: 300 }   // W1
+                  ];
+                case 'Anbar_Sangin':
+                  return [
+                    { x: 390, y: 540 },   // w1
+                    { x: 390, y: 300 },   // turn right towards anbar sangin
+                    { x: 660, y: 300 },   // reach anbar sangin
+                    { x: 660, y: 560 },   // turn right towards W1
+                  ];
+                case 'Anbar_Khamir_Ghadim':
+                  return [
+                    { x: 390, y: 540 },  // W1
+                    { x: 350, y: 260 },  // turn right towards anbar Mohavath_Homayoun
+                    { x: 600, y: 260 },  // turn left towards anbar Mohavath_Homayoun
+                    { x: 600, y: 150 },  // Anbar Mohavath_Homayoun            
+                  ];
+                default: 
+                  return [
+                    { x: 350, y: 580 },  // W1
+                  ]
+            }
           }
         case 'LoadedUnloaded':
           //const start = currentPos || this.truckStopPositions[shipment.unload_location] || { x: 510, y: 610 };
@@ -627,95 +835,145 @@ export default {
             switch(unload_location) {
               case 'Anbar_Salon_Tolid':
                 return [
-                  { x: 320, y: 260 },     // W1
-                  { x: 1140, y: 260 },    // Before turning right
-                  { x: 1140, y: 410 }     // Turn right towards W2
+                  { x: 350, y: 260 },     // Anbar Salon Tolid
+                  { x: 350, y: 580 },    // W1
                 ];
               case 'Anbar_Sangin':
                 return [
-                  { x: 800, y: 310 },     // reach anbar sangin
-                  { x: 1140, y: 310 },    // Before turning right
-                  { x: 1140, y: 410 }     // Turn right towards W2
+                  { x: 660, y: 570 },     // anbar sangin
+                  { x: 660, y: 750 },    // Before turning left
+                  { x: 390, y: 750 },     // Turn right towards W1
+                  { x: 390, y: 540 }     // Turn right towards W1
                 ];
               case 'Anbar_Koochak':
                 return [
                   { x: 360, y: 150 },     // Anbar koochak
-                  { x: 360, y: 260 },     // turn left 
-                  { x: 1140, y: 260 },    // Before turning right
-                  { x: 1140, y: 410 }     // Turn right towards W2
+                  { x: 360, y: 260 },     // turn right 
+                  { x: 350, y: 260 },    // Before turning left
+                  { x: 350, y: 580 }     // Turn left towards W1
                 ];
               case'Anbar_Parvandeh':
                 return [
                   { x: 360, y: 120 },     // Anbar Parvandeh            
-                  { x: 360, y: 260 },     // turn left 
-                  { x: 1140, y: 260 },    // Before turning right
-                  { x: 1140, y: 410 }     // Turn right towards W2
+                  { x: 360, y: 260 },     // turn right 
+                  { x: 350, y: 260 },    // Before turning left
+                  { x: 350, y: 580 }     // Turn left towards W1
                 ];
               case 'Anbar_Mohavath_Homayoun':
                 return [
                   { x: 460, y: 200 },  // Anbar Mohavath_Homayoun            
-                  { x: 460, y: 260 },  // turn left
-                  { x: 1140, y: 260 },    // Before turning right
-                  { x: 1140, y: 410 }     // Turn right towards W2
+                  { x: 460, y: 260 },  // turn right
+                  { x: 350, y: 260 },    // Before turning left
+                  { x: 350, y: 580 }     // Turn left towards W1
                 ];
               case 'Anbar_Khamir_Ghadim':
                 return [
                   { x: 600, y: 150 },  // Anbar Mohavath_Homayoun            
-                  { x: 600, y: 260 },  // turn left 
-                  { x: 1140, y: 260 },    // Before turning right
-                  { x: 1140, y: 410 }     // Turn right towards W2
+                  { x: 600, y: 260 },  // turn right 
+                  { x: 350, y: 260 },    // Before turning left
+                  { x: 350, y: 580 }     // Turn left towards W1
                 ];
               case 'Anbar_Muhvateh_Kardan':
                 return [
                   { x: 1100, y: 180 },  // move backward to Anbar_Khamir_Kordan     
-                  { x: 1140, y: 260 },    // Before turning right
-                  { x: 1140, y: 410 }     // Turn right towards W2
+                  { x: 1170, y: 260 },    // Before turning right
+                  { x: 1170, y: 370 }     // Turn right towards W2
                 ];
               case 'Anbar_Khamir_Kordan':
                 return [
-                  { x: 1140, y: 180 },  //  Anbar_Khamir_Kordan     
-                  { x: 1140, y: 410 }     //  W2
+                  { x: 1170, y: 150 },  //  Anbar_Khamir_Kordan     
+                  { x: 1170, y: 300 }     //  W2
                 ];
               case 'Anbar_PAK':
                 return [
                   { x: 1320, y: 820 },   // towards out of factory
                   { x: 1020, y: 820 },   // turn right
-                  { x: 1140, y: 410 }     //  W2
+                  { x: 1170, y: 370 }     //  W2
                 ];
               case 'Anbar_Akhal':
                 return [
                   { x: 120, y: 830 },  // Start from current or W1
                   { x: 1020, y: 820 },   // turn right
-                  { x: 1080, y: 410 }     //  W2
+                  { x: 1080, y: 370 }     //  W2
 
                 ];
               default: 
                 return [
-                  { x: 1140, y: 410 },  // W2
+                  { x: 1170, y: 370 },  // W2
                 ]
             }
           }
           else {
-            return [
-              start,                  // From Anbar Salon Tolid
-              { x: 280, y: 280 },     // Beside building
-              { x: 1140, y: 280 },    // Horizontal across top
-              { x: 1140, y: 410 },    // Down to W2
-            ];
+            switch(unload_location) {
+              case 'Anbar_Salon_Tolid':
+                return [
+                  { x: 350, y: 300 },   // Anbar Salon Tolid
+                  { x: 390, y: 540 },  // W1
+                ];               
+              case 'Anbar_Sangin':
+                return [
+                  { x: 660, y: 560 },   // anbar sangin
+                  { x: 660, y: 300 },   // turn left 
+                  { x: 390, y: 300 },   // turn left towards W1
+                  { x: 390, y: 540 },   // W1
+                ];
+              case 'Anbar_Khamir_Ghadim':
+                return [
+                  { x: 600, y: 200 },  // Anbar Mohavath Kordan            
+                  { x: 600, y: 300 },  // turn right towards anbar salon tolid
+                  { x: 390, y: 300 },  // turn left towards W1
+                  { x: 390, y: 540 },  // W1
+                ];
+              default: 
+                return [
+                  { x: 390, y: 540 },  // W1
+                ]
+            }
           }
         case 'Office':
-          return [
-            currentPos || { x: 1140, y: 410 },
-            { x: 1140, y: 410 },
-            { x: 1080, y: 724 },
-          ];
+          if (type === 'Incoming') {
+            if(material_type && material_type.indexOf('آخال') !== -1) {
+              return [
+                currentPos || { x: 1170, y: 370 },
+                { x: 1140, y: 410 },
+                { x: 1070, y: 724 },
+              ];
+            } else {
+              return [
+                currentPos || { x: 390, y: 540 },
+                { x: 390, y: 540 },
+                { x: 390, y: 724 },
+              ];            
+            }        
+          } else {
+            return [
+                currentPos || { x: 390, y: 540 },
+                { x: 390, y: 540 },
+                { x: 390, y: 724 },
+              ];            
+          }
         case 'Delivered':
-          return [
-            currentPos || { x: 1224, y: 724 },  // Office
-            // { x: 1070, y: 760 },  // Exit
-            { x: 900, y: 820 },   // Street
-            { x: 0, y: 820 }   // Street
-          ];
+          if (type === 'Incoming') {
+            if(material_type && material_type.indexOf('آخال') !== -1) {
+              return [
+                currentPos || { x: 1070, y: 724 },
+                { x: 1070, y: 820 },   // Street
+                { x: 0, y: 820 }   // Street
+              ];
+            } else {
+              return [
+                currentPos || { x: 390, y: 724 },
+                { x: 390, y: 820 },   // Street
+                { x: 0, y: 820 }   // Street
+              ];            
+            }        
+          } else {
+            return [
+                currentPos || { x: 390, y: 724 },
+                { x: 390, y: 820 }, 
+                { x: 0, y: 820 }   // Street
+              ];            
+          }          
         default:
             return [];
       }
@@ -726,7 +984,8 @@ export default {
      */
     getAnimatedTruckPosition(shipment) {
       const animation = this.truckAnimations[shipment.id];
-      if (animation && animation.animating) {
+      // Use stored position if available (even if not currently animating)
+      if (animation && animation.currentX !== undefined && animation.currentY !== undefined) {
         return { x: animation.currentX, y: animation.currentY };
       }
       return this.getTruckEndPosition(shipment);
@@ -737,7 +996,14 @@ export default {
      */
     getAnimatedTruckRotation(shipment) {
       const animation = this.truckAnimations[shipment.id];
-      if (animation && animation.animating) {
+      console.log('🔄 getAnimatedTruckRotation:', {
+        id: shipment.id,
+        animation: animation,
+        rotation: animation?.rotation,
+        hasRotation: animation?.rotation !== undefined
+      });
+      
+      if (animation && animation.rotation !== undefined) {
         return animation.rotation;
       }
       return this.getTruckRotation(shipment);
@@ -818,6 +1084,52 @@ export default {
     },
 
     /**
+     * Open Cargo Dialog when clicking on truck cargo
+     * Fetches fresh data from backend
+     */
+     async openCargoDialog(shipment) {
+      console.log('Opening cargo dialog for shipment ID:', shipment.id)
+      this.showCargoDialog = true
+      this.loadingCargoDetails = true
+      this.selectedShipment = null  // Clear previous data
+      
+      try {
+        const response = await axios.get(`/myapp/api/getShipmentCargoDetails?shipment_id=${shipment.id}`)
+        
+        if (response.data.status === 'success') {
+          this.selectedShipment = response.data.data
+          console.log('Loaded fresh cargo details:', this.selectedShipment)
+        } else {
+          console.error('Failed to fetch cargo details:', response.data.message)
+          // Fallback to cached data if API fails
+          this.selectedShipment = shipment
+        }
+      } catch (error) {
+        console.error('Error fetching cargo details:', error)
+        // Fallback to cached data if API fails
+        this.selectedShipment = shipment
+      } finally {
+        this.loadingCargoDetails = false
+      }
+    },
+
+    /**
+     * Close cargo dialog
+     */
+    closeCargoDialog() {
+      this.showCargoDialog = false
+      this.selectedShipment = null
+      this.loadingCargoDetails = false    
+    },
+
+    /**
+     * Parse list of reels into array
+     */
+    parseReelsList(listOfReels) {
+      if (!listOfReels) return []
+      return listOfReels.replace(/\s/g, '').split(',').filter(r => r)
+    },
+    /**
      * Get cylinder height based on count (for visualization)
      */
     getCylinderHeight(count, maxCount) {
@@ -843,7 +1155,63 @@ export default {
     getMaxCount(items, key = 'count') {
       if (!items || items.length === 0) return 1
       return Math.max(...items.map(i => i[key] || 0), 1)
-    }
+    },
+
+    /**
+     * Play truck sound
+     */
+    playTruckSound(truckId) {
+      if (!this.truckAudios[truckId]) {
+        this.truckAudios[truckId] = new Audio('/static/sounds/mixkit-tractor-driving-away-1599.wav');
+        this.truckAudios[truckId].loop = true;
+        this.truckAudios[truckId].volume = 0.3;
+
+        // Play the audio
+        this.truckAudios[truckId].currentTime = 0;
+        this.truckAudios[truckId].play().catch(err => {
+          console.log('Audio play failed for truck ' + truckId + ':', err);
+        });
+      }
+    },
+
+    /**
+     * Stop truck sound for a specific truck
+     */
+    stopTruckSound(truckId) {
+      if (this.truckAudios[truckId]) {
+        this.truckAudios[truckId].pause();
+        this.truckAudios[truckId].currentTime = 0;
+      }
+    },
+
+    /**
+     * Stop all truck sounds
+     */
+    stopAllTruckSounds() {
+      Object.keys(this.truckAudios).forEach(truckId => {
+        this.stopTruckSound(truckId);
+      });
+    },
+
+    /**
+     * Check if any truck is currently animating
+     */
+    isAnyTruckMoving() {
+      return Object.values(this.truckAnimations).some(anim => anim && anim.animating);
+    },
+
+    /**
+     * Get the previous status in the workflow
+     */
+    getPreviousStatus(currentStatus) {
+      const workflow = {
+        'LoadingUnloading': 'Registered',
+        'LoadedUnloaded': 'LoadingUnloading',
+        'Office': 'LoadedUnloaded',
+        'Delivered': 'Office'
+      };
+      return workflow[currentStatus] || null;
+    },
   },
   watch: {
     activeShipments: {
@@ -857,8 +1225,9 @@ export default {
           // Check if truck status changed or is new
           const oldShipment = oldShipments?.find(s => s.id === shipment.id);
           
-          // Trigger animation if: new shipment, status changed, OR initial load (no oldShipments)
-          if (!oldShipment || oldShipment.status !== shipment.status || !oldShipments) {
+          // Trigger animation if: new shipment, status changed, unload_location changed, OR initial load (no oldShipments)
+          const unloadLocationChanged = oldShipment && oldShipment.unload_location !== shipment.unload_location;
+          if (!oldShipment || oldShipment.status !== shipment.status || unloadLocationChanged || !oldShipments) {
             // console.log(`🚚 Starting animation for ${shipment.license_number} (status: ${shipment.status})`)
             
             // Get current animation state (if any)
@@ -868,28 +1237,69 @@ export default {
               null;  
 
             // Status changed - start animation
-            const waypoints = this.getWaypointsForShipment(shipment);
+            const waypoints = this.getWaypointsForShipment(shipment, currentPos);
 
             if (waypoints.length > 0) {
               // Cancel any existing animation
               if (this.animationFrames[shipment.id]) {
                 cancelAnimationFrame(this.animationFrames[shipment.id]);
               }
-              // Initialize position at start
-              this.truckAnimations[shipment.id] = {
-                currentX: waypoints[0].x,
-                currentY: waypoints[0].y,
-                rotation: currentAnimation?.rotation || 0,
-                animating: false
-              };
-              
-              // Start animation after small delay
-              setTimeout(() => {
-                this.animateTruckAlongPath(shipment, waypoints);
-              }, 100);
-            } else {
-              // console.warn(`⚠️ No waypoints for ${shipment.license_number}`)
+
+              // Only start animation if we have at least 2 waypoints
+              if(waypoints.length > 1) {
+                // Initialize position at start
+                this.truckAnimations[shipment.id] = {
+                  currentX: waypoints[0].x,
+                  currentY: waypoints[0].y,
+                  rotation: currentAnimation?.rotation || 0,
+                  animating: false
+                };
+                
+                // Start animation after small delay
+                setTimeout(() => {
+                  this.animateTruckAlongPath(shipment, waypoints);
+                }, 100);
+              } else {
+                // Only 1 waypoint - keep truck at that position but preserve rotation
+                if (!this.truckAnimations[shipment.id]) {
+                  this.truckAnimations[shipment.id] = {};
+                }
+                // Update position but preserve rotation
+                this.truckAnimations[shipment.id].currentX = waypoints[0].x;
+                this.truckAnimations[shipment.id].currentY = waypoints[0].y;
+                this.truckAnimations[shipment.id].animating = false;
+                // Keep existing rotation and movingLeft - don't overwrite!
+
+                // If no rotation exists, calculate based on how truck arrived at this position
+                if (this.truckAnimations[shipment.id].rotation === undefined) {
+                  // Get the previous status waypoints to determine arrival direction
+                  const prevStatus = this.getPreviousStatus(shipment.status);
+                  if (prevStatus) {
+                    const prevShipment = { ...shipment, status: prevStatus };
+                    const prevWaypoints = this.getWaypointsForShipment(prevShipment);
+                    if (prevWaypoints.length >= 2) {
+                      const lastSegmentStart = prevWaypoints[prevWaypoints.length - 2];
+                      const lastSegmentEnd = prevWaypoints[prevWaypoints.length - 1];
+                      const dx = lastSegmentEnd.x - lastSegmentStart.x;
+                      const dy = lastSegmentEnd.y - lastSegmentStart.y;
+                      
+                      if (Math.abs(dy) > Math.abs(dx) * 2) {
+                        this.truckAnimations[shipment.id].rotation = dy < 0 ? -90 : 90;
+                      } else {
+                        this.truckAnimations[shipment.id].rotation = 0;
+                      }
+                      this.truckAnimations[shipment.id].movingLeft = dx < 0;
+                    } else {
+                      this.truckAnimations[shipment.id].rotation = 0;
+                    }
+                  } else {
+                    this.truckAnimations[shipment.id].rotation = 0;
+                  }
+                }
+              }
             }
+          } else {
+            //console.warn(`⚠️ No waypoints for ${shipment.license_number}`)
           }
         });
       },
@@ -931,10 +1341,10 @@ export default {
         <rect x="0" y="783" width="1700" height="60" fill="#999" stroke="#666" stroke-width="2" />
         <text x="850" y="818" text-anchor="middle" font-size="16" font-weight="bold" fill="#fff">STREET</text>
         
-        <!-- Anbar Salon Tolid (moved up 10px) -->
+        <!-- Anbar Salon Tolid -->
         <g class="anbar-salon-tolid">
-          <rect x="40" y="10" width="200" height="455" fill="none" stroke="#000" stroke-width="2" />
-          <text x="140" y="455" text-anchor="middle" font-size="13" font-weight="bold">Anbar Salon Tolid</text>
+          <rect x="40" y="10" width="200" height="420" fill="none" stroke="#000" stroke-width="2" />
+          <text x="140" y="420" text-anchor="middle" font-size="12" font-weight="bold">Anbar Salon Tolid</text>
           
           <!-- PM3 Area (increased width, equal gaps on sides and between) -->
           <rect x="50" y="15" width="63" height="230" fill="#f5f5f5" stroke="#000" stroke-width="2" />
@@ -945,57 +1355,83 @@ export default {
           <text x="81" y="140" text-anchor="middle" font-size="12" font-weight="bold">PM3</text>
           
           <!-- PM2 Area (30% narrower: 63 * 0.7 = 44) -->
-          <rect x="137" y="15" width="44" height="140" fill="#f5f5f5" stroke="#000" stroke-width="2" />
+          <rect x="185" y="15" width="45" height="140" fill="#f5f5f5" stroke="#000" stroke-width="2" />
           <!-- Top empty square -->
-          <rect x="141" y="20" width="36" height="36" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <rect x="190" y="20" width="36" height="36" fill="#fff" stroke="#000" stroke-width="1.5" />
           <!-- Bottom empty square -->
-          <rect x="141" y="109" width="36" height="36" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <text x="159" y="90" text-anchor="middle" font-size="12" font-weight="bold">PM2</text>
+          <rect x="190" y="109" width="36" height="36" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <text x="208" y="90" text-anchor="middle" font-size="12" font-weight="bold">PM2</text>
           
           <!-- Cylinders in Anbar Salon Tolid (2 rows, 3 cylinders, moved up with gap above text, all surfaces white) -->
           <!-- Row 1 -->
-          <ellipse cx="70" cy="320" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <rect x="50" y="320" width="40" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="70" cy="365" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="90" cy="350" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 80,350 L 80,320 L 100,320 L 100,350" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="90" cy="320" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
           
-          <ellipse cx="120" cy="320" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <rect x="100" y="320" width="40" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="120" cy="365" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="115" cy="350" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 105,350 L 105,320 L 125,320 L 125,350" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="115" cy="320" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
           
-          <ellipse cx="170" cy="320" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <rect x="150" y="320" width="40" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="170" cy="365" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="140" cy="350" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 130,350 L 130,320 L 150,320 L 150,350" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="140" cy="320" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
           
+          <ellipse cx="165" cy="350" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 155,350 L 155,320 L 175,320 L 175,350" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="165" cy="320" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+
+          <ellipse cx="190" cy="350" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 180,350 L 180,320 L 200,320 L 200,350" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="190" cy="320" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+
           <!-- Row 2 -->
-          <ellipse cx="70" cy="380" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <rect x="50" y="380" width="40" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="70" cy="425" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="90" cy="390" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 80,390 L 80,360 L 100,360 L 100,390" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="90" cy="360" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
           
-          <ellipse cx="120" cy="380" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <rect x="100" y="380" width="40" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="120" cy="425" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="115" cy="390" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 105,390 L 105,360 L 125,360 L 125,390" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="115" cy="360" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
           
-          <ellipse cx="170" cy="380" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <rect x="150" y="380" width="40" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="170" cy="425" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="140" cy="390" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 130,390 L 130,360 L 150,360 L 150,390" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="140" cy="360" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+
+          <ellipse cx="165" cy="390" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 155,390 L 155,360 L 175,360 L 175,390" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="165" cy="360" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          
+          <ellipse cx="190" cy="390" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 180,390 L 180,360 L 200,360 L 200,390" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="190" cy="360" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+
         </g>
 
-        <!-- Empty rect between Anbar Salon Tolid and upper right narrow green oval (moved up 10px) -->
-        <rect x="240" y="10" width="660" height="59" fill="none" stroke="#000" stroke-width="2" />
+        <!-- Restaurant -->
+        <g class="restaurant">
+          <rect x="40" y="440" width="200" height="150" fill="none" stroke="#000" stroke-width="2" />
+          <text x="140" y="520" text-anchor="middle" font-size="12" font-weight="bold" fill="#000">Restaurant</text>
+        </g>
 
-        <!-- Anbar Parvandeh (moved up 10px) -->
+        <!-- Otagh Estrahat -->
+        <g class="restaurant">
+          <rect x="120" y="600" width="120" height="120" fill="none" stroke="#000" stroke-width="2" />
+          <text x="180" y="665" text-anchor="middle" font-size="12" font-weight="bold" fill="#000">Otagh Estrahat</text>
+        </g>
+
+        <!-- Anbar Parvandeh -->
         <g class="anbar-parvandeh">
           <rect x="240" y="69" width="190" height="50" fill="none" stroke="#000" stroke-width="2" />
-          <text x="335" y="98" text-anchor="middle" font-size="11" font-weight="bold">Anbar Parvandeh</text>
+          <text x="335" y="103" text-anchor="middle" font-size="11" font-weight="bold">Anbar Parvandeh</text>
         </g>
 
-        <!-- Anbar Koochak (moved up 10px) -->
+        <!-- Anbar Koochak -->
         <g class="anbar-koochak">
-          <rect x="240" y="119" width="190" height="102" fill="none" stroke="#000" stroke-width="2" />
+          <rect x="240" y="119" width="190" height="104" fill="none" stroke="#000" stroke-width="2" />
           <text x="335" y="210" text-anchor="middle" font-size="11" font-weight="bold">Anbar Koochak</text>
           
           <!-- Pallet A 22 cube -->
-          <g transform="translate(305, 135)">
+          <g transform="translate(305, 150)">
             <!-- Front face (height doubled) -->
             <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
             <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
@@ -1008,13 +1444,22 @@ export default {
           </g>
         </g>
 
-        <!-- Anbar Khamir Ghadim (moved up 10px) -->
+        <!-- Anbar Khamir Ghadim -->
         <g class="anbar-khamir-ghadim">
-          <rect x="710" y="69" width="190" height="154" fill="none" stroke="#000" stroke-width="2" />
-          <text x="805" y="210" text-anchor="middle" font-size="11" font-weight="bold">Anbar Khamir Ghadim</text>
+          <path d="M 710,69 L 240,69 L 240,10 L 900,10 L 900,69" fill="none" stroke="#000" stroke-width="2" />
+          <path d="M 710,69 L 710,123 L 900,123 L 900,69" fill="none" stroke="#000" stroke-width="2" />
+          <path d="M 710,123 L 710,173 L 900,173 L 900,123" fill="none" stroke="#000" stroke-width="2" />
+          <path d="M 710,173 L 710,223 L 900,223 L 900,173" fill="none" stroke="#000" stroke-width="2" />
+          <ellipse cx="538" cy="40" rx="90" ry="25" fill="#fff0d5" stroke="#000" stroke-width="1.5" />
+          <text x="540" y="43" text-anchor="middle" font-size="12" font-weight="bold">Anbar Khamir Ghadim</text>
+          <text x="800" y="150" text-anchor="middle" font-size="11" font-weight="bold">Water Station</text>
+          <text x="800" y="200" text-anchor="middle" font-size="11" font-weight="bold">Gas Station</text>
+          
+          <rect x="300" y="10" width="100" height="30" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <text x="350" y="30" text-anchor="middle" font-size="11" font-weight="bold">Laboratory</text>
           
           <!-- Pallet B 12 cube -->
-          <g transform="translate(725, 85)">
+          <g transform="translate(735, 15)">
             <!-- Front face (height doubled) -->
             <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
             <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
@@ -1027,7 +1472,7 @@ export default {
           </g>
           
           <!-- Pallet C 17 cube -->
-          <g transform="translate(810, 85)">
+          <g transform="translate(790, 15)">
             <!-- Front face (height doubled) -->
             <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
             <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
@@ -1038,70 +1483,126 @@ export default {
             <!-- Right side face -->
             <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
           </g>
+
+          <!-- Reels in Anbar Khamir Ghadim -->
+          <ellipse cx="750" cy="100" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 740,100 L 740,70 L 760,70 L 760,100" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="750" cy="70" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          
+          <ellipse cx="775" cy="100" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 765,100 L 765,70 L 785,70 L 785,100" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="775" cy="70" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          
+          <ellipse cx="800" cy="100" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 790,100 L 790,70 L 810,70 L 810,100" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="800" cy="70" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+
+          <ellipse cx="825" cy="100" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 815,100 L 815,70 L 835,70 L 835,100" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="825" cy="70" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+
+          <ellipse cx="850" cy="100" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 840,100 L 840,70 L 860,70 L 860,100" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="850" cy="70" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+
         </g>
 
-
-        <!-- Weight Station 1 (Moved upward) -->
+        <!-- Weight Station 1 -->
         <g class="weight-station-1">
-          <rect x="290" y="490" width="60" height="180" fill="#fff" stroke="#000" stroke-width="2" />
-          <text x="320" y="565" text-anchor="middle" font-size="11" font-weight="bold">Weight</text>
-          <text x="320" y="585" text-anchor="middle" font-size="11" font-weight="bold">Station</text>
-          <text x="320" y="605" text-anchor="middle" font-size="11" font-weight="bold">1</text>
+          <rect x="320" y="490" width="60" height="150" fill="#fff" stroke="#000" stroke-width="2" />
+          <text x="350" y="565" text-anchor="middle" font-size="11" font-weight="bold">Weight</text>
+          <text x="350" y="585" text-anchor="middle" font-size="11" font-weight="bold">Station</text>
+          <text x="350" y="605" text-anchor="middle" font-size="11" font-weight="bold">1</text>
         </g>
 
-        <!-- Anbar Sangin (moved left with gap from right narrow green oval) -->
+        <!-- Anbar Sangin -->
         <g class="anbar-sangin">
-          <rect x="790" y="345" width="110" height="160" fill="none" stroke="#000" stroke-width="2" />
-          <text x="845" y="490" text-anchor="middle" font-size="13" font-weight="bold">Anbar Sangin</text>
+          <rect x="710" y="345" width="190" height="75" fill="none" stroke="#000" stroke-width="2" />
+          <rect x="710" y="420" width="190" height="170" fill="none" stroke="#000" stroke-width="2" />
+          <text x="800" y="380" text-anchor="middle" font-size="12" font-weight="bold">Anbar Abzar</text>
+          <text x="800" y="580" text-anchor="middle" font-size="12" font-weight="bold">Anbar Sangin</text>
           
-          <!-- PM2 Cylinders in Sangin (2 rows, 2 cylinders each, with data labels) -->
-          <!-- Row 1 Left: PM2, 140, 12 -->
-          <ellipse cx="820" cy="360" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <rect x="800" y="360" width="40" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="820" cy="405" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <text x="820" y="378" text-anchor="middle" font-size="7">PM2</text>
-          <text x="820" y="388" text-anchor="middle" font-size="7">140</text>
-          <text x="820" y="398" text-anchor="middle" font-size="7">12</text>
+          <!-- Pile of 5 Chemical Sacks (3:5:2 ratio = 30:50:20 pixels) -->
+          <g class="chemical-sacks" transform="translate(720, 440)">
+            <!-- Bottom Row - 3 Sacks -->
+            <!-- Sack 1 (bottom left) -->
+            <g transform="translate(33, 50)">
+              <rect x="0" y="0" width="20" height="30" rx="3" fill="#8B4513" stroke="#5D2906" stroke-width="1.5"/>
+              <path d="M 0,0 L 10,-10 L 25,-10 L 20,0 Z" fill="#A0522D" stroke="#5D2906" stroke-width="1"/>
+              <path d="M 20,0 L 25,-10 L 25,25 L 20,30 Z" fill="#6B3A0F" stroke="#5D2906" stroke-width="1"/>
+              <text x="15" y="28" text-anchor="middle" font-size="6" fill="#fff" font-weight="bold">CHEM</text>
+            </g>
+            
+            <!-- Sack 2 (bottom center) -->
+            <g transform="translate(58, 50)">
+              <rect x="0" y="0" width="20" height="30" rx="3" fill="#8B4513" stroke="#5D2906" stroke-width="1.5"/>
+              <path d="M 0,0 L 10,-10 L 25,-10 L 20,0 Z" fill="#A0522D" stroke="#5D2906" stroke-width="1"/>
+              <path d="M 20,0 L 25,-10 L 25,25 L 20,30 Z" fill="#6B3A0F" stroke="#5D2906" stroke-width="1"/>
+              <text x="15" y="28" text-anchor="middle" font-size="6" fill="#fff" font-weight="bold">CHEM</text>
+            </g>
+            
+            <!-- Sack 3 (bottom right) -->
+            <g transform="translate(83, 50)">
+              <rect x="0" y="0" width="20" height="30" rx="3" fill="#8B4513" stroke="#5D2906" stroke-width="1.5"/>
+              <path d="M 0,0 L 10,-10 L 25,-10 L 20,0 Z" fill="#A0522D" stroke="#5D2906" stroke-width="1"/>
+              <path d="M 20,0 L 25,-10 L 25,25 L 20,30 Z" fill="#6B3A0F" stroke="#5D2906" stroke-width="1"/>
+              <text x="15" y="28" text-anchor="middle" font-size="6" fill="#fff" font-weight="bold">CHEM</text>
+            </g>
+            
+            <!-- Top Row - 2 Sacks (stacked on bottom row) -->
+            <!-- Sack 4 (top left) -->
+            <g transform="translate(50, 20)">
+              <rect x="0" y="0" width="20" height="30" rx="3" fill="#A0522D" stroke="#5D2906" stroke-width="1.5"/>
+              <path d="M 0,0 L 10,-10 L 25,-10 L 20,0 Z" fill="#CD853F" stroke="#5D2906" stroke-width="1"/>
+              <path d="M 20,0 L 25,-10 L 25,25 L 20,30 Z" fill="#8B4513" stroke="#5D2906" stroke-width="1"/>
+              <text x="15" y="28" text-anchor="middle" font-size="6" fill="#fff" font-weight="bold">CHEM</text>
+            </g>
+            
+            <!-- Sack 5 (top right) -->
+            <g transform="translate(70, 20)">
+              <rect x="0" y="0" width="20" height="30" rx="3" fill="#A0522D" stroke="#5D2906" stroke-width="1.5"/>
+              <path d="M 0,0 L 10,-10 L 25,-10 L 20,0 Z" fill="#CD853F" stroke="#5D2906" stroke-width="1"/>
+              <path d="M 20,0 L 25,-10 L 25,25 L 20,30 Z" fill="#8B4513" stroke="#5D2906" stroke-width="1"/>
+              <text x="15" y="28" text-anchor="middle" font-size="6" fill="#fff" font-weight="bold">CHEM</text>
+            </g>
+          </g>
+
+          <!-- Reels in Anbar Khamir Ghadim -->
+          <ellipse cx="750" cy="560" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 740,560 L 740,530 L 760,530 L 760,560" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="750" cy="530" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
           
-          <!-- Row 1 Right: PM2, 140, 13 -->
-          <ellipse cx="860" cy="360" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <rect x="840" y="360" width="40" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="860" cy="405" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <text x="860" y="378" text-anchor="middle" font-size="7">PM2</text>
-          <text x="860" y="388" text-anchor="middle" font-size="7">140</text>
-          <text x="860" y="398" text-anchor="middle" font-size="7">13</text>
+          <ellipse cx="775" cy="560" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 765,560 L 765,530 L 785,530 L 785,560" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="775" cy="530" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
           
-          <!-- Row 2 Left: PM2, 130, 22 -->
-          <ellipse cx="820" cy="420" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <rect x="800" y="420" width="40" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="820" cy="465" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <text x="820" y="438" text-anchor="middle" font-size="7">PM2</text>
-          <text x="820" y="448" text-anchor="middle" font-size="7">130</text>
-          <text x="820" y="458" text-anchor="middle" font-size="7">22</text>
-          
-          <!-- Row 2 Right: PM2, 120, 13 -->
-          <ellipse cx="860" cy="420" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <rect x="840" y="420" width="40" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="860" cy="465" rx="20" ry="8" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <text x="860" y="438" text-anchor="middle" font-size="7">PM2</text>
-          <text x="860" y="448" text-anchor="middle" font-size="7">120</text>
-          <text x="860" y="458" text-anchor="middle" font-size="7">13</text>
+          <ellipse cx="800" cy="560" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 790,560 L 790,530 L 810,530 L 810,560" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="800" cy="530" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+
+          <ellipse cx="825" cy="560" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 815,560 L 815,530 L 835,530 L 835,560" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="825" cy="530" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+
+          <ellipse cx="850" cy="560" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <path d="M 840,560 L 840,530 L 860,530 L 860,560" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <ellipse cx="850" cy="530" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
         </g>
 
         <!-- QC Area (moved left with gap from right narrow green oval) -->
         <g class="qc-area">
-          <rect x="790" y="525" width="110" height="110" fill="#fff" stroke="#000" stroke-width="2" />
-          <text x="845" y="585" text-anchor="middle" font-size="13" font-weight="bold">QC</text>
+          <rect x="710" y="590" width="190" height="130" fill="#fff" stroke="#000" stroke-width="2" />
+          <text x="800" y="660" text-anchor="middle" font-size="13" font-weight="bold">QC</text>
         </g>
 
         <!-- Narrow Green Ovals (Roads) - Narrower, half height from top -->
         <g class="roads">
           <!-- First vertical divider (left, narrower, moved down a bit) -->
-          <ellipse cx="480" cy="520" rx="8" ry="175" fill="#c8e6c9" stroke="#4caf50" stroke-width="2" />
+          <ellipse cx="480" cy="520" rx="10" ry="175" fill="#c8e6c9" stroke="#4caf50" stroke-width="2" />
           <!-- Second vertical divider (right-center, narrower, moved down a bit) -->
-          <ellipse cx="950" cy="520" rx="8" ry="175" fill="#c8e6c9" stroke="#4caf50" stroke-width="2" />
+          <ellipse cx="950" cy="520" rx="10" ry="175" fill="#c8e6c9" stroke="#4caf50" stroke-width="2" />
           <!-- Third divider (right upper, height increased by 1/3: 87.5 * 1.333 = 116.7, extended from bottom) -->
-          <ellipse cx="950" cy="117.5" rx="8" ry="106.7" fill="#c8e6c9" stroke="#4caf50" stroke-width="2" />
+          <ellipse cx="950" cy="117.5" rx="10" ry="106.7" fill="#c8e6c9" stroke="#4caf50" stroke-width="2" />
         </g>
         
         <!-- Workflow Path (CLEAN - NO ARROWS - AVOIDING ALL BUILDINGS) -->
@@ -1109,55 +1610,46 @@ export default {
           <!-- GREEN Path (Incoming): Entrance → W1 → Above/Below left tree → Warehouses → W2 → Exit -->
           <g stroke="#4caf50" stroke-width="4" stroke-dasharray="12,8" opacity="0.5" fill="none" class="path-animation">
             <!-- From entrance up to Weight Station 1 -->
-            <line x1="320" y1="760" x2="320" y2="670" />
-            <line x1="320" y1="670" x2="320" y2="580" />
-            
-            <!-- Continue up after W1, with distance from top of left tree (y=345-20=325) -->
-            <line x1="320" y1="580" x2="320" y2="260" />
+            <line x1="350" y1="760" x2="350" y2="260" />
             
             <!-- Turn right ABOVE left tree (20px gap from top at y=345) -->
-            <line x1="320" y1="260" x2="750" y2="260" />
+            <line x1="350" y1="260" x2="650" y2="260" />
                        
             <!-- Path to Anbar Sangin -->
-            <line x1="750" y1="260" x2="750" y2="425" />
-            
-            <!-- After Anbar Sangin, continue down to turn BELOW left tree (y=695+20=715) -->
-            <line x1="750" y1="425" x2="750" y2="715" />
+            <line x1="650" y1="260" x2="650" y2="715" />
             
             <!-- Turn right BELOW left tree (20px gap from bottom at y=695) -->
-            <line x1="750" y1="715" x2="460" y2="715" />
+            <line x1="650" y1="715" x2="350" y2="715" />
             
             <!-- Turn right to avoid tree and return to main path -->
-            <line x1="460" y1="715" x2="320" y2="715" />
-            <line x1="320" y1="715" x2="320" y2="760" />
+            <line x1="350" y1="715" x2="350" y2="760" />
             
             <!-- Alternative path to W2 (from warehouses area) -->
-            <line x1="650" y1="260" x2="900" y2="260" />
-            <line x1="900" y1="260" x2="1080" y2="260" />
-            <line x1="1080" y1="260" x2="1080" y2="410" />
-            <line x1="1080" y1="410" x2="1110" y2="410" />
+            <line x1="650" y1="260" x2="1050" y2="260" />
+            <line x1="1050" y1="260" x2="1050" y2="410" />
+            <line x1="1050" y1="410" x2="1140" y2="410" />
             
             <!-- From W2 to Exit -->
-            <line x1="1110" y1="410" x2="1070" y2="410" />
-            <line x1="1070" y1="410" x2="1070" y2="724" />
-            <line x1="1070" y1="724" x2="1070" y2="760" />
+            <line x1="1140" y1="410" x2="1050" y2="410" />
+            <line x1="1050" y1="410" x2="1050" y2="724" />
+            <line x1="1050" y1="724" x2="1050" y2="760" />
 
             <!-- From Exit to Street -->
-            <line x1="1070" y1="760" x2="1070" y2="820" />
-            <line x1="1070" y1="820" x2="100" y2="820" />
+            <line x1="1050" y1="760" x2="1050" y2="820" />
+            <line x1="1050" y1="820" x2="0" y2="820" />
           </g>
           
           <!-- BLUE Path (Outgoing): Entrance → W1 → Straight down beside Salon Tolid → Right to W2 → Exit -->
-          <g stroke="#2196f3" stroke-width="4" stroke-dasharray="12,8" opacity="0.5" fill="none" class="path-animation">
+          <g stroke="#04467c" stroke-width="4" stroke-dasharray="12,8" opacity="0.5" fill="none" class="path-animation">
             <!-- From entrance up to Weight Station 1 -->
-            <line x1="320" y1="760" x2="320" y2="670" />
-            <line x1="320" y1="670" x2="320" y2="580" />
+            <line x1="350" y1="760" x2="350" y2="670" />
+            <line x1="350" y1="670" x2="350" y2="580" />
             
             <!-- Continue STRAIGHT DOWN vertically from W1 to beside Anbar Salon Tolid -->
-            <line x1="320" y1="580" x2="320" y2="465" />
+            <line x1="350" y1="580" x2="350" y2="465" />
             
             <!-- Move left to beside Anbar Salon Tolid (outside the building) -->
-            <line x1="320" y1="465" x2="280" y2="465" />
+            <line x1="350" y1="465" x2="280" y2="465" />
             
             <!-- Down beside the building -->
             <line x1="280" y1="465" x2="280" y2="280" />
@@ -1166,7 +1658,7 @@ export default {
             <line x1="280" y1="280" x2="1110" y2="280" />
             
             <!-- Down to W2 -->
-            <line x1="1110" y1="410" x2="1110" y2="410" />
+            <line x1="1110" y1="280" x2="1110" y2="410" />
             
             <!-- From W2 to Exit -->
             <line x1="1110" y1="410" x2="1070" y2="410" />
@@ -1179,62 +1671,128 @@ export default {
           </g>
           
           <!-- ANBAR PAK & AKHAL External Unload Path (OUTSIDE FACTORY) -->
-          <g stroke="#ff9800" stroke-width="4" stroke-dasharray="8,6" opacity="0.5" fill="none">
+          <g stroke="#ff0000" stroke-width="4" stroke-dasharray="8,6" opacity="0.5" fill="none">
             <!-- Exit factory to street -->
-            <line x1="320" y1="760" x2="320" y2="820" />
+            <line x1="1050" y1="760" x2="1050" y2="820" />
             
             <!-- Along street to Anbar PAK/Akhal area -->
-            <line x1="320" y1="820" x2="1400" y2="820" />
+            <line x1="1050" y1="820" x2="1400" y2="820" />
             
             <!-- Up to Anbar PAK (outside) -->
             <line x1="1400" y1="820" x2="1400" y2="650" />
-            
-            <!-- Re-enter factory to W2 -->
-            <line x1="1400" y1="650" x2="1110" y2="650" />
-            <line x1="1110" y1="650" x2="1110" y2="410" />
           </g>
         </g>
 
-        <!-- Akhal 2 33 cube (height doubled: 20→40) -->
-        <g transform="translate(1040, 40)">
+        <!-- Anbar Mohavate Kordan (Akhal) -->
+        <g transform="translate(975,10)">
           <!-- Front face (height doubled) -->
-          <path d="M 0,15 L 80,15 L 80,55 L 0,55 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-          <text x="40" y="38" text-anchor="middle" font-size="9" font-weight="bold">Akhal 2 33</text>
-          <!-- Top face (parallelogram) -->
-          <path d="M 0,15 L 20,5 L 100,5 L 80,15 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
-          <!-- Right side face (height doubled) -->
-          <path d="M 80,15 L 100,5 L 100,45 L 80,55 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+          <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+          <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
+          <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
+          <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
+          <!-- Top face -->
+          <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+          <!-- Right side face -->
+          <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+        </g>
+        <g transform="translate(975,50)">
+          <!-- Front face (height doubled) -->
+          <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+          <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
+          <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
+          <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
+          <!-- Top face -->
+          <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+          <!-- Right side face -->
+          <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
         </g>
 
-        <!-- Right Side: Anbar Khamir Kordan Container (moved up to stick to factory top at y=10) -->
+        <!-- Anbar Khamir Kordan-->
         <g class="right-container">
-          <!-- Anbar Khamir KORDAN rect (top sticks to factory at y=10) -->
-          <rect x="1170" y="10" width="210" height="650" fill="none" stroke="#000" stroke-width="2" />
+          <rect x="1170" y="70" width="210" height="220" fill="none" stroke="#000" stroke-width="2" />
+          <path d="M 1170,290 L 1170,660 L 1380,660 L 1380,290" fill="none" stroke="#000" stroke-width="1.5" />
+
+          <!-- Oval inside Anbar Khamir Kordan -->
+          <ellipse cx="1280" cy="125" rx="90" ry="40" fill="#fff0d5" stroke="#000" stroke-width="2" />
+          <text x="1280" y="115" text-anchor="middle" font-size="12" font-weight="bold">Anbar</text>
+          <text x="1280" y="130" text-anchor="middle" font-size="12" font-weight="bold">Khamir</text>
+          <text x="1280" y="145" text-anchor="middle" font-size="12" font-weight="bold">KORDAN</text>
           
-          <!-- Oval inside (moved up 10px) -->
-          <ellipse cx="1260" cy="130" rx="60" ry="95" fill="none" stroke="#000" stroke-width="2" />
-          <text x="1260" y="120" text-anchor="middle" font-size="12" font-weight="bold">Anbar</text>
-          <text x="1260" y="138" text-anchor="middle" font-size="12" font-weight="bold">Khamir</text>
-          <text x="1260" y="156" text-anchor="middle" font-size="12" font-weight="bold">KORDAN</text>
-          
-          <!-- Akhal 1 100 cube (height doubled: 20→40) -->
-          <g transform="translate(1220, 40)">
+          <!-- Akhal 1 100 cube (height doubled: 20→40) -->g>
+          <g transform="translate(1200, 200)">
             <!-- Front face (height doubled) -->
-            <path d="M 0,15 L 80,15 L 80,55 L 0,55 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-            <text x="40" y="38" text-anchor="middle" font-size="9" font-weight="bold">Akhal 1 100</text>
-            <!-- Top face (parallelogram) -->
-            <path d="M 0,15 L 20,5 L 100,5 L 80,15 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
-            <!-- Right side face (height doubled) -->
-            <path d="M 80,15 L 100,5 L 100,45 L 80,55 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+            <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
+            <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
+            <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
+            <!-- Top face -->
+            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+            <!-- Right side face -->
+            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
           </g>
-          
-          <!-- PM4 Area (moved up 10px) -->
-          <rect x="1290" y="237" width="65" height="274" fill="#f5f5f5" stroke="#000" stroke-width="2" />
+          <g transform="translate(1255, 200)">
+            <!-- Front face (height doubled) -->
+            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+            <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
+            <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
+            <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
+            <!-- Top face -->
+            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+            <!-- Right side face -->
+            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+          </g>
+          <g transform="translate(1310, 200)">
+            <!-- Front face (height doubled) -->
+            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+            <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
+            <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
+            <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
+            <!-- Top face -->
+            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+            <!-- Right side face -->
+            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+          </g>
+          <g transform="translate(1200, 240)">
+            <!-- Front face (height doubled) -->
+            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+            <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
+            <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
+            <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
+            <!-- Top face -->
+            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+            <!-- Right side face -->
+            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+          </g>
+          <g transform="translate(1255, 240)">
+            <!-- Front face (height doubled) -->
+            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+            <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
+            <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
+            <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
+            <!-- Top face -->
+            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+            <!-- Right side face -->
+            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+          </g>
+          <g transform="translate(1310, 240)">
+            <!-- Front face (height doubled) -->
+            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+            <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
+            <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
+            <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
+            <!-- Top face -->
+            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+            <!-- Right side face -->
+            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+          </g>
+
+          <!-- PM4 Area  -->
+          <rect x="1290" y="320" width="55" height="300" fill="#f5f5f5" stroke="#000" stroke-width="2" />
           <!-- Top empty square -->
-          <rect x="1295" y="242" width="55" height="55" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <rect x="1295" y="325" width="45" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
           <!-- Bottom empty square -->
-          <rect x="1295" y="451" width="55" height="55" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <text x="1322" y="374" text-anchor="middle" font-size="12" font-weight="bold">PM4</text>
+          <rect x="1295" y="570" width="45" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <text x="1322" y="470" text-anchor="middle" font-size="12" font-weight="bold">PM4</text>
         </g>
 
         <!-- Office (increased 20%: 108×108, moved up with gap below Kordan) -->
@@ -1245,16 +1803,15 @@ export default {
 
         <!-- Weight Station 2 (narrower, taller, moved down, stick to Kordan at x=1170) -->
         <g class="weight-station-2">
-          <rect x="1110" y="320" width="60" height="180" fill="#fff" stroke="#000" stroke-width="2" />
+          <rect x="1110" y="320" width="60" height="150" fill="#fff" stroke="#000" stroke-width="2" />
           <text x="1140" y="395" text-anchor="middle" font-size="11" font-weight="bold">Weight</text>
           <text x="1140" y="415" text-anchor="middle" font-size="11" font-weight="bold">Station</text>
           <text x="1140" y="435" text-anchor="middle" font-size="11" font-weight="bold">2</text>
         </g>
 
-        <!-- Anbar PAK (bottom edge aligns with factory bottom at y=783) -->
+        <!-- Anbar PAK -->
         <g class="anbar-pak">
-          <!-- PAK narrow rect (bottom at y=783, aligned with factory) -->
-          <rect x="1380" y="460" width="60" height="323" fill="#f5f5f5" stroke="#000" stroke-width="2" />
+          <rect x="1380" y="460" width="60" height="323" fill="none" stroke="#000" stroke-width="2" />
           <text x="1410" y="620" text-anchor="middle" font-size="12" font-weight="bold" transform="rotate(90 1410 620)">Anbar PAK</text>
           
           <!-- Akhal 4 98 cube (height doubled: 16→32) -->
@@ -1272,8 +1829,8 @@ export default {
         <!-- Entrances (repositioned) -->
         <g class="entrances">
           <!-- Left entrance - under Weight Station 1 -->
-          <rect x="260" y="760" width="120" height="42" fill="#fff" stroke="#000" stroke-width="2" />
-          <text x="320" y="785" text-anchor="middle" font-size="12">Entrance</text>
+          <rect x="290" y="760" width="120" height="42" fill="#fff" stroke="#000" stroke-width="2" />
+          <text x="340" y="785" text-anchor="middle" font-size="12">Entrance</text>
           
           <!-- Right entrance - moved to right -->
           <rect x="1010" y="760" width="120" height="42" fill="#fff" stroke="#000" stroke-width="2" />
@@ -1282,42 +1839,42 @@ export default {
 
         <!-- STATIC FORKLIFTS (Always Visible - Ready State - BIGGER) -->
         <g class="static-forklifts">
-          <!-- Forklift 1 - Near Loading Zone -->
-          <g transform="translate(500, 610)">
-            <text x="0" y="0" font-size="45" text-anchor="middle">🚜</text>
-            <circle cx="-18" cy="-20" r="7" fill="#4caf50" stroke="#fff" stroke-width="2" />
-            <text x="0" y="30" text-anchor="middle" font-size="10" fill="#4caf50" font-weight="bold">READY</text>
+          <!-- Forklift 1 - Near Mohavate Homayoun -->
+          <g transform="translate(600, 105)">
+            <text x="0" y="0" font-size="30" text-anchor="middle">🚜</text>
+            <circle cx="-12" cy="-13" r="5" fill="#4caf50" stroke="#fff" stroke-width="2" />
+            <text x="0" y="20" text-anchor="middle" font-size="8" fill="#4caf50" font-weight="bold">READY</text>
           </g>
           
           <!-- Forklift 2 - Near Anbar Sangin -->
-          <g transform="translate(750, 425)">
-            <text x="0" y="0" font-size="45" text-anchor="middle">🚜</text>
-            <circle cx="-18" cy="-20" r="7" fill="#4caf50" stroke="#fff" stroke-width="2" />
-            <text x="0" y="30" text-anchor="middle" font-size="10" fill="#4caf50" font-weight="bold">READY</text>
-          </g>
+          <!-- <g transform="translate(685, 550)">
+            <text x="0" y="0" font-size="30" text-anchor="middle">🚜</text>
+            <circle cx="-12" cy="-13" r="5" fill="#4caf50" stroke="#fff" stroke-width="2" />
+            <text x="0" y="20" text-anchor="middle" font-size="8" fill="#4caf50" font-weight="bold">READY</text>
+          </g> -->
           
-          <!-- Forklift 3 - Near Anbar PAK -->
-          <g transform="translate(1350, 620)">
-            <text x="0" y="0" font-size="45" text-anchor="middle">🚜</text>
-            <circle cx="-18" cy="-20" r="7" fill="#4caf50" stroke="#fff" stroke-width="2" />
-            <text x="0" y="30" text-anchor="middle" font-size="10" fill="#4caf50" font-weight="bold">READY</text>
+          <!-- Forklift 3 - Near Mohavate Kordan -->
+          <g transform="translate(1080, 35)">
+            <text x="0" y="0" font-size="30" text-anchor="middle">🚜</text>
+            <circle cx="-12" cy="-13" r="5" fill="#4caf50" stroke="#fff" stroke-width="2" />
+            <text x="0" y="20" text-anchor="middle" font-size="8" fill="#4caf50" font-weight="bold">READY</text>
           </g>
           
           <!-- Forklift 4 - Near Anbar Salon Tolid -->
-          <g transform="translate(260, 237)">
-            <text x="0" y="0" font-size="45" text-anchor="middle">🚜</text>
-            <circle cx="-18" cy="-20" r="7" fill="#4caf50" stroke="#fff" stroke-width="2" />
-            <text x="0" y="30" text-anchor="middle" font-size="10" fill="#4caf50" font-weight="bold">READY</text>
+          <g transform="translate(270, 255)">
+            <text x="0" y="0" font-size="30" text-anchor="middle">🚜</text>
+            <circle cx="-12" cy="-13" r="5" fill="#4caf50" stroke="#fff" stroke-width="2" />
+            <text x="0" y="20" text-anchor="middle" font-size="8" fill="#4caf50" font-weight="bold">READY</text>
           </g>
         </g>
 
-        <!-- Anbar Akhal (moved up 42px, height 5x: 25*5=125) -->
+        <!-- Anbar Akhal -->
         <g class="anbar-akhal-bottom">
           <rect x="40" y="843" width="320" height="125" fill="none" stroke="#000" stroke-width="2" />
           <text x="200" y="860" text-anchor="middle" font-size="12" font-weight="bold">Anbar Akhal</text>
           
           <!-- Akhal 3 114 cube -->
-          <g transform="translate(50, 875)">
+          <g transform="translate(110, 890)">
             <!-- Front face (height doubled) -->
             <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
             <text x="25" y="31" text-anchor="middle" font-size="8" font-weight="bold">Akhal 3 114</text>
@@ -1328,7 +1885,7 @@ export default {
           </g>
           
           <!-- Akhal 4 260 cube -->
-          <g transform="translate(135, 875)">
+          <g transform="translate(165, 890)">
             <!-- Front face (height doubled) -->
             <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
             <text x="25" y="31" text-anchor="middle" font-size="8" font-weight="bold">Akhal 4 260</text>
@@ -1339,7 +1896,7 @@ export default {
           </g>
           
           <!-- Akhal 2 170 cube -->
-          <g transform="translate(220, 875)">
+          <g transform="translate(220, 890)">
             <!-- Front face (height doubled) -->
             <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
             <text x="25" y="31" text-anchor="middle" font-size="8" font-weight="bold">Akhal 2 170</text>
@@ -1434,11 +1991,7 @@ export default {
             class="truck-animated"
           >
             <!-- Professional 3D Flatbed Truck (REVERSED - Cab at back, trailer at front) -->
-             <g :transform="`translate(${-90 - (index % 3) * 20}, ${-70 - Math.floor(index / 3) * 70}) rotate(${isTruckMovingLeft(shipment) ? 0 : getAnimatedTruckRotation(shipment)} 90 70) scale(${isTruckMovingLeft(shipment) ? -1 : 1}, 1)`"> 
-
-            <!-- In the template, update the truck group transform -->
-            <!--<g :transform="`translate(${-90 - (index % 3) * 20}, ${-70 - Math.floor(index / 3) * 70}) scale(${isTruckMovingLeft(shipment) ? -1 : 1}, 1)`"-->
-              :style="{ transformOrigin: '90px 70px' }">
+            <g :transform="`translate(${-90 - (index % 3) * 20}, ${-70 - Math.floor(index / 3) * 70}) rotate(${getAnimatedTruckRotation(shipment)} 90 70) scale(${(isTruckMovingLeft(shipment) ? -1 : 1) * 0.7}, 0.7)`">  
 
               <!-- Motion trail effect (if truck is moving) - now at back -->
               <g v-if="shipment.status === 'Registered' || shipment.status === 'LoadedUnloaded'" class="motion-trail" opacity="0.4">
@@ -1491,8 +2044,11 @@ export default {
               <rect x="5" y="43" width="105" height="3" :fill="shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3'" stroke="#222" stroke-width="1" />
               <rect x="5" y="80" width="105" height="3" :fill="shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3'" stroke="#222" stroke-width="1" />
               
-              <!-- =============== CARGO/PACKAGE (Only for Incoming shipments) =============== -->
-              <g v-if="shipment.shipment_type === 'Incoming'">
+              <!-- =============== CARGO/PACKAGE (Only for Incoming shipments) =============== "shipment.shipment_type === 'Incoming'"-->
+              <g v-if="truckHasCargo(shipment)"
+                 class="cargo-clickable"
+                 @click="openCargoDialog(shipment)"
+                 style="cursor: pointer;">
                 <!-- 3D Cube/Package on trailer -->
                 <g transform="translate(25, 30)">
                   <!-- Cube Front Face -->
@@ -1723,7 +2279,7 @@ export default {
                 :fill="shipment.status === 'LoadingUnloading' ? '#ff5722' : (shipment.shipment_type === 'Incoming' ? '#4caf50' : '#2196f3')"
                 stroke="#fff"
                 stroke-width="3"
-                :class="{ 'blink-animation': shipment.location === 'Weight_Station_1' || shipment.status === 'LoadingUnloading' }"
+                :class="{ 'blink-animation': shipment.location === 'Weight_Station_1' || shipment.location === 'Weight_Station_2' || shipment.status === 'LoadingUnloading' && shipment.unload_location }"
               />
               
               <!-- License Plate (on trailer) -->
@@ -1794,7 +2350,7 @@ Location: {{ shipment.location }}
         <!-- Active Forklifts (Dynamic - WORKING STATE - BIGGER) -->
         <g class="active-forklifts">
           <template v-for="(shipment, index) in activeShipments" :key="'forklift-' + shipment.id">
-            <g v-if="shipment.status === 'LoadingUnloading'">
+            <g v-if="shipment.status === 'LoadingUnloading' && shipment.unload_location">
               <!-- Position forklift near the truck (bigger offset for bigger truck) -->
               <g 
                 :transform="`translate(${getTruckPosition(shipment).x + 80 + (index % 2) * 50}, ${getTruckPosition(shipment).y - 15})`"
@@ -1804,7 +2360,7 @@ Location: {{ shipment.location }}
                 <text 
                   x="0" 
                   y="0" 
-                  font-size="50" 
+                  font-size="35" 
                   text-anchor="middle"
                 >🚜</text>
                 
@@ -1813,9 +2369,9 @@ Location: {{ shipment.location }}
                 
                 <!-- Pallet/Box being moved (Bigger) -->
                 <text 
-                  x="35" 
-                  y="8" 
-                  font-size="35" 
+                  x="25" 
+                  y="6" 
+                  font-size="25" 
                   text-anchor="middle"
                 >📦</text>
                 
@@ -2193,6 +2749,138 @@ Location: {{ shipment.unload_location || 'Anbar_Salon_Tolid' }}</title>
       </div>
     </div>
 
+    <!-- ADD: Cargo Details Dialog -->
+    <div v-if="showCargoDialog" class="cargo-dialog-overlay" @click.self="closeCargoDialog">
+      <div class="cargo-dialog">
+        <!-- Dialog Header -->
+        <div class="dialog-header" :class="{ 
+          'header-green': selectedShipment.shipment_type === 'Incoming', 
+          'header-blue': selectedShipment.shipment_type === 'Outgoing',
+          'header-loading': loadingCargoDetails
+        }">
+          <h2>
+            <span v-if="loadingCargoDetails">📦 Loading...</span>
+            <span v-else-if="selectedShipment?.shipment_type === 'Incoming'">📦 Incoming Cargo</span>
+            <span v-else>📦 Outgoing Cargo</span>
+          </h2>
+          <h3 v-if="selectedShipment">{{ selectedShipment.license_number }}</h3>
+          <button class="close-btn" @click="closeCargoDialog">✕</button>
+        </div>
+        
+        <!-- Loading State -->
+        <div v-if="loadingCargoDetails" class="dialog-loading">
+          <div class="spinner"></div>
+          <p>Loading cargo details...</p>
+        </div>
+
+        <!-- Dialog Content -->
+        <div v-else-if="selectedShipment" class="dialog-content cargo-content">
+          <!-- INCOMING SHIPMENT VIEW -->
+          <template v-if="selectedShipment.shipment_type === 'Incoming'">
+            <div class="cargo-info-grid">
+              <div class="cargo-info-item">
+                <span class="info-icon">📋</span>
+                <div class="info-details">
+                  <span class="info-label">Material Type</span>
+                  <span class="info-value">{{ selectedShipment.material_type || 'N/A' }}</span>
+                </div>
+              </div>
+              
+              <div class="cargo-info-item">
+                <span class="info-icon">🏭</span>
+                <div class="info-details">
+                  <span class="info-label">Material Name</span>
+                  <span class="info-value">{{ selectedShipment.material_name || 'N/A' }}</span>
+                </div>
+              </div>
+              
+              <div class="cargo-info-item">
+                <span class="info-icon">🚚</span>
+                <div class="info-details">
+                  <span class="info-label">Supplier</span>
+                  <span class="info-value supplier-name">{{ selectedShipment.supplier_name || 'N/A' }}</span>
+                </div>
+              </div>
+              
+              <div class="cargo-info-item" v-if="selectedShipment.quantity">
+                <span class="info-icon">📊</span>
+                <div class="info-details">
+                  <span class="info-label">Quantity</span>
+                  <span class="info-value">{{ selectedShipment.quantity }} {{ selectedShipment.unit || '' }}</span>
+                </div>
+              </div>
+              
+              <div class="cargo-info-item" v-if="selectedShipment.net_weight">
+                <span class="info-icon">⚖️</span>
+                <div class="info-details">
+                  <span class="info-label">Net Weight</span>
+                  <span class="info-value">{{ selectedShipment.net_weight }} kg</span>
+                </div>
+              </div>
+              
+              <div class="cargo-info-item" v-if="selectedShipment.unload_location">
+                <span class="info-icon">📍</span>
+                <div class="info-details">
+                  <span class="info-label">Destination</span>
+                  <span class="info-value">{{ formatWarehouseName(selectedShipment.unload_location) }}</span>
+                </div>
+              </div>
+            </div>
+          </template>
+          
+          <!-- OUTGOING SHIPMENT VIEW -->
+          <template v-else>
+            <div class="cargo-info-grid">
+              <div class="cargo-info-item">
+                <span class="info-icon">👤</span>
+                <div class="info-details">
+                  <span class="info-label">Customer</span>
+                  <span class="info-value customer-name">{{ selectedShipment.customer_name || 'N/A' }}</span>
+                </div>
+              </div>
+              
+              <div class="cargo-info-item">
+                <span class="info-icon">📊</span>
+                <div class="info-details">
+                  <span class="info-label">Quantity</span>
+                  <span class="info-value">{{ parseReelsList(selectedShipment.list_of_reels).length }} Reels</span>
+                </div>
+              </div>
+              
+              <div class="cargo-info-item" v-if="selectedShipment.net_weight">
+                <span class="info-icon">⚖️</span>
+                <div class="info-details">
+                  <span class="info-label">Net Weight</span>
+                  <span class="info-value">{{ selectedShipment.net_weight }} kg</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Reels List -->
+            <div class="reels-section" v-if="selectedShipment.list_of_reels">
+              <h4>🧻 Reel Numbers</h4>
+              <div class="reels-grid">
+                <span 
+                  v-for="(reel, index) in parseReelsList(selectedShipment.list_of_reels)" 
+                  :key="index"
+                  class="reel-badge"
+                >
+                  {{ reel }}
+                </span>
+              </div>
+            </div>
+          </template>
+          
+          <!-- Status Badge -->
+          <div class="status-section">
+            <span class="status-badge" :class="'status-' + selectedShipment.status.toLowerCase()">
+              {{ selectedShipment.status }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Right Sidebar with Title, Buttons, and Footer -->
     <div class="right-sidebar">
       <div class="sidebar-top">
@@ -2443,10 +3131,10 @@ Location: {{ shipment.unload_location || 'Anbar_Salon_Tolid' }}</title>
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
 }
 
-.truck-animated:hover g {
+/* .truck-animated:hover g {
   transform: scale(1.1);
   transition: transform 0.2s ease;
-}
+} */
 
 /* Forklift animations - More dramatic motion */
 .forklift-animated {
@@ -2901,5 +3589,164 @@ Location: {{ shipment.unload_location || 'Anbar_Salon_Tolid' }}</title>
 .clickable-circle:hover circle {
   stroke-width: 4;
 }
-</style>
 
+/* ============================================ */
+/* CARGO DIALOG STYLES */
+/* ============================================ */
+
+.cargo-clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cargo-clickable:hover {
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+  transform: scale(1.05);
+}
+
+.cargo-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+}
+
+.cargo-dialog {
+  background: #fff;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: dialog-enter 0.3s ease-out;
+}
+
+.header-blue {
+  background: linear-gradient(135deg, #2196F3 0%, #1565C0 100%);
+}
+
+.cargo-content {
+  padding: 25px;
+}
+
+.cargo-info-grid {
+  display: grid;
+  gap: 15px;
+}
+
+.cargo-info-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border-left: 4px solid #667eea;
+}
+
+.info-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.info-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-label {
+  font-size: 12px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.info-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.supplier-name, .customer-name {
+  color: #1565C0;
+}
+
+.reels-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 2px solid #e0e0e0;
+}
+
+.reels-section h4 {
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.reels-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.reel-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #2196F3 0%, #64B5F6 100%);
+  color: #fff;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: monospace;
+}
+
+.status-section {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.status-registered {
+  background: #FFF3E0;
+  color: #E65100;
+}
+
+.status-loadingunloading {
+  background: #FCE4EC;
+  color: #C2185B;
+}
+
+.status-loadedunloaded {
+  background: #E3F2FD;
+  color: #1565C0;
+}
+
+.status-office {
+  background: #F3E5F5;
+  color: #7B1FA2;
+}
+
+.status-delivered {
+  background: #E8F5E9;
+  color: #2E7D32;
+}
+
+</style>

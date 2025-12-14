@@ -7,6 +7,7 @@
     "build": "vue-cli-service build"
   },
   "dependencies": {
+    "@tresjs/core": "^5.2.0",
     "autoprefixer": "^10",
     "axios": "^1.6.7",
     "core-js": "^3.8.3",
@@ -16,6 +17,7 @@
     "postcss": "^8",
     "qrcode": "^1.5.3",
     "tailwindcss": "^3",
+    "three": "^0.182.0",
     "vue": "^3.2.13",
     "vue-axios": "^3.5.2",
     "vue-router": "^4.0.3",

@@ -4838,7 +4838,7 @@ def get_factory_map_data(request):
             return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
         # Calculate time threshold: 60 minutes ago
-        sixty_minutes_ago = timezone.now() - timedelta(minutes=240)
+        sixty_minutes_ago = timezone.now() - timedelta(minutes=3)
 
         # Get shipments with complex filter:
         # 1. Exclude all 'Cancelled' shipments
@@ -5241,6 +5241,66 @@ def get_warehouse_inventory_details(request):
 
     except Exception as e:
         print(f"Error in get_warehouse_inventory_details: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@csrf_exempt
+def get_incomming_truck_load_data(request):
+    try:
+        if request.method != 'GET':
+            return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+        # Calculate time threshold: 60 minutes ago
+        sixty_minutes_ago = timezone.now() - timedelta(minutes=240)
+
+        # Get shipments with complex filter:
+        # 1. Exclude all 'Cancelled' shipments
+        # 2. For 'Delivered' shipments, only include recent ones (last 60 minutes)
+        # 3. Include all other statuses (Registered, LoadingUnloading, LoadedUnloaded, Office)
+        shipments = Shipments.objects.exclude(status='Cancelled').exclude(
+            Q(status='Delivered') & Q(exit_time__lt=sixty_minutes_ago)  # Exclude old delivered
+        ).values(
+            'id', 'shipment_type', 'status', 'location', 'license_number', 'customer_name',  
+            'supplier_name', 'unload_location', 'material_type', 'material_name')
+
+        return JsonResponse({'status': 'success', 'data': list(shipments)}, status=200)
+    except Exception as e:
+        print(f"Error in get_incomming_truck_load_data: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@csrf_exempt
+def get_shipment_cargo_details(request):
+    """
+    Get detailed cargo information for a specific shipment.
+    Called when user clicks on cargo in the factory map.
+    """
+    try:
+        if request.method != 'GET':
+            return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+        shipment_id = request.GET.get('shipment_id')
+        if not shipment_id:
+            return JsonResponse({'status': 'error', 'message': 'shipment_id is required'}, status=400)
+
+        # Get fresh shipment data
+        shipment = Shipments.objects.filter(id=shipment_id).values(
+            'id', 'shipment_type', 'status', 'license_number',
+            'customer_name', 'supplier_name', 
+            'material_type', 'material_name',
+            'unload_location', 'unit', 'quantity', 'net_weight',
+            'list_of_reels', 'width', 'profile_name'
+        ).first()
+
+        if not shipment:
+            return JsonResponse({'status': 'error', 'message': 'Shipment not found'}, status=404)
+
+        return JsonResponse({'status': 'success', 'data': shipment}, status=200)
+    
+    except Exception as e:
+        print(f"Error in get_shipment_cargo_details: {e}")
         import traceback
         traceback.print_exc()
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
