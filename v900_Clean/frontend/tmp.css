@@ -1,0 +1,6 @@
+/* <g :transform="`translate(-120.4, -43.75) scale(${(truckAnimations[shipment.id]?.flipX || 1) * 0.7}, 0.7)`"> */
+
+
+.t {
+    color: #a3a19e;
+}

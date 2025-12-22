@@ -26,6 +26,8 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import importlib
 from importlib.util import find_spec
+from channels.layers import get_channel_layer
+
 
 if find_spec('arabic_reshaper') and find_spec('bidi.algorithm'):
     arabic_reshaper = importlib.import_module('arabic_reshaper')
@@ -2336,6 +2338,26 @@ def moved(request):
                     errors.append({'status': 'error', 'message': msg})
                     return JsonResponse({'status': 'error', 'errors': errors})
 
+
+                # Broadcast movement via WebSocket
+                try:
+                    channel_layer = get_channel_layer()
+                    if channel_layer is not None: 
+                        async_to_sync(channel_layer.group_send)(
+                            'factory_movements',
+                            {
+                                'type': 'movement_message',
+                                'from_anbar': from_anbar,
+                                'to_anbar': to_anbar,
+                                'quantity': int(Quantity),
+                                'material_type': 'Raw'
+                            }
+                        )
+                        from myapp.consumers import add_movement_to_queue
+                        add_movement_to_queue(from_anbar, to_anbar, int(Quantity), 'Raw')
+                except Exception as e:
+                    print(f"WebSocket broadcast error: {e}")
+
                 # Return a success response
 
                 return JsonResponse({'status': 'success', 'message': f'{Quantity} units of {material_name} have been moved from {from_anbar} to {to_anbar}.'})
@@ -2386,6 +2408,25 @@ def moved(request):
                     record.location=to_anbar
                     record.logs =record.logs + log_generator(forklift_driver, 'Moved')
                     record.save()
+
+                # Broadcast movement via WebSocket
+                try:
+                    channel_layer = get_channel_layer()
+                    if channel_layer is not None: 
+                        async_to_sync(channel_layer.group_send)(
+                            'factory_movements',
+                            {
+                                'type': 'movement_message',
+                                'from_anbar': from_anbar,
+                                'to_anbar': to_anbar,
+                                'quantity': 1,  # Reel moves one at a time
+                                'material_type': 'Reel'
+                            }
+                        )
+                        from myapp.consumers import add_movement_to_queue
+                        add_movement_to_queue(from_anbar, to_anbar, 1, 'Reel')
+                except Exception as e:
+                    print(f"WebSocket broadcast error: {e}")
 
                 # Return a success response
                 return JsonResponse({'status': 'success', 'message': f'1 units of {material_name} have been moved from {from_anbar} to {to_anbar}.'})
@@ -2524,6 +2565,25 @@ def retuned(request):
                     record.save()
                     new_item.save()
 
+                # Broadcast return movement via WebSocket
+                try:
+                    channel_layer = get_channel_layer()
+                    if channel_layer is not None: 
+                        async_to_sync(channel_layer.group_send)(
+                            'factory_movements',
+                            {
+                                'type': 'movement_message',
+                                'from_anbar': 'Consumption',
+                                'to_anbar': to_anbar,
+                                'quantity': int(quantity),
+                                'material_type': 'Raw'
+                            }
+                        )
+                        from myapp.consumers import add_movement_to_queue
+                        add_movement_to_queue('Consumption', to_anbar, int(quantity), 'Raw')
+                except Exception as e:
+                    print(f"WebSocket broadcast error: {e}")
+               
                 return JsonResponse(
                     {'status': 'success', 'message': f'ok'})
             except ValidationError as e:
