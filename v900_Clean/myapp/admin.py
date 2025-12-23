@@ -61,7 +61,9 @@ class OurCompanyAdmin(admin.ModelAdmin):
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
 
-    list_display = ('customer_name', 'register_number', 'commercial_code', 'address', 'postal_code', 'phone', 'status', 'comments', 'username', 'logs')
+    # list_display = ('customer_name', 'register_number', 'commercial_code', 'address', 'postal_code', 'phone', 'status', 'comments', 'username', 'logs')
+
+    list_display = ('customer_name', 'address', 'phone', 'status', 'comments', 'username', 'logs')
 
     search_fields = ('customer_name', 'phone')
 
