@@ -345,16 +345,16 @@ class Products(models.Model):
         return f"Product (Product Location: {self.location}, Reel Number: {self.reel_number}, Status: {self.status})"
 
 
-class ShipmentProducts(models.Model):
+# class ShipmentProducts(models.Model):
 
-    shipment = models.ForeignKey(Shipments, on_delete=models.SET_NULL, blank=True, null=True)
-    product = models.ForeignKey(Products, on_delete=models.SET_NULL, blank=True, null=True)
-    quantity = models.IntegerField(null=True)
-    username = models.CharField(max_length=255, null=False, blank=True)
-    logs = models.TextField(blank=True)
+#     shipment = models.ForeignKey(Shipments, on_delete=models.SET_NULL, blank=True, null=True)
+#     product = models.ForeignKey(Products, on_delete=models.SET_NULL, blank=True, null=True)
+#     quantity = models.IntegerField(null=True)
+#     username = models.CharField(max_length=255, null=False, blank=True)
+#     logs = models.TextField(blank=True)
 
-    class Meta:
-        db_table = 'ShipmentProducts'
+#     class Meta:
+#         db_table = 'ShipmentProducts'
 
 
 class Purchases(models.Model):
