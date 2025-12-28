@@ -54,15 +54,15 @@ export default {
       },
       // Warehouse badge positions
       warehouseBadgePositions: {
-        'Anbar_PAK': { x: 1410, y: 470 },
-        'Anbar_Sangin': { x: 845, y: 425 },
+        'Anbar_PAK': { x: 1410, y: 460 },
+        'Anbar_Sangin': { x: 845, y: 405 },
         'Anbar_Khamir_Kordan': { x: 1320, y: 75 },
-        'Anbar_Mohavate_Kardan': { x: 980, y: 20 },
-        'Anbar_Khamir_Ghadim': { x: 655, y: 20 },
+        'Anbar_Mohavate_Kardan': { x: 980, y: 15 },
+        'Anbar_Khamir_Ghadim': { x: 860, y: 15 },
         'Anbar_Mohavate_Homayoun': { x: 500, y: 85 },
         'Anbar_Parvandeh': { x: 360, y: 75 },
         'Anbar_Koochak': { x: 360, y: 125 },
-        'Anbar_Salon_Tolid': { x: 130, y: 20 },
+        'Anbar_Salon_Tolid': { x: 130, y: 15 },
         'Anbar_Akhal': { x: 300, y: 860 },
       },
       truckAnimations: {}, // Store animated positions { truckId: { currentX, currentY, rotation, animating } }
@@ -91,7 +91,7 @@ export default {
         'Anbar_Sangin': { x: 640, y: 460 },
         'Anbar_Koochak': { x: 400, y: 180 },
         'Anbar_Parvandeh': { x: 400, y: 100 },
-        'Anbar_Khamir_Ghadim': { x: 720, y: 100 },
+        'Anbar_Khamir_Ghadim': { x: 620, y: 100 },
         'Anbar_Mohavath_Homayoun': { x: 520, y: 180 },
         'Anbar_Muhvateh_Kardan': { x: 1070, y: 105 },
         'Anbar_Khamir_Kordan': { x: 1120, y: 180 },
@@ -123,6 +123,99 @@ export default {
       warehouseForkliftAnimations: {},  // { movementId: { currentX, currentY, hasCargo, animating } }
       warehouseForkliftAnimationFrames: {},  // RAF IDs for cleanup
       processingMovementQueue: false,  // Flag to prevent multiple queue processing
+
+      // Cylinder(Reels) configuration
+      cylinderConfig: {
+        'Anbar_Salon_Tolid': {
+          startX: 70,
+          startY: 330,
+          spacingX: 25,
+          spacingY: 55,
+          cylindersPerRow: 6,
+          radius: { rx: 10, ry: 4 },
+          height: 30,
+          maxRows: 2
+        },
+        'Anbar_Sangin': {
+          startX: 740,
+          startY: 490,
+          spacingX: 25,
+          spacingY: 55,
+          cylindersPerRow: 6,
+          radius: { rx: 10, ry: 4 },
+          height: 30,
+          maxRows: 2
+        },
+        'Anbar_Khamir_Ghadim': {
+          startX: 740,
+          startY: 50,
+          spacingX: 25,
+          spacingY: 55,
+          cylindersPerRow: 6,
+          radius: { rx: 10, ry: 4 },
+          height: 30,
+          maxRows: 2
+        }
+      },    
+
+      // Add after cylinderConfig in data()
+      akhalPackConfig: {
+        'Anbar_Akhal': {
+          startX: 125,
+          startY: 890,
+          spacingX: 40,
+          spacingY: 0,  // Single row
+          packsPerRow: 5,
+          maxRows: 2
+        },
+        'Anbar_Khamir_Kordan': {
+          startX: 1220,
+          startY: 200,
+          spacingX: 40,
+          spacingY: 40,
+          packsPerRow: 3,
+          maxRows: 2
+        },
+        'Anbar_Mohavate_Kardan': {
+          startX: 975,
+          startY: 10,
+          spacingX: 0,
+          spacingY: 40,
+          packsPerRow: 1,
+          maxRows: 3
+        },
+        'Anbar_Khamir_Ghadim': {
+          startX: 585,
+          startY: 15,
+          spacingX: 40,
+          spacingY: 0,
+          packsPerRow: 3,
+          maxRows: 1
+        },
+        'Anbar_Mohavate_Homayoun': {
+          startX: 450,
+          startY: 95,
+          spacingX: 40,
+          spacingY: 0,
+          packsPerRow: 2,
+          maxRows: 2
+        },
+        'Anbar_PAK': {
+          startX: 1387,
+          startY: 475,
+          spacingX: 0,
+          spacingY: 45,
+          packsPerRow: 1,
+          maxRows: 5
+        }
+      },    
+
+      tooltip: {
+        visible: false,
+        content: '',
+        x: 0,
+        y: 0
+      },
     }
   },
   computed: {
@@ -249,7 +342,7 @@ export default {
         
         this.movementWebSocket.onmessage = (event) => {
           const data = JSON.parse(event.data)
-          console.log('📦 Movement received:', data)
+          console.log('📦 Message received:', data)
           
           if (data.type === 'movement') {
             // Add movement to queue
@@ -274,6 +367,12 @@ export default {
               // Real-time movements start immediately
               this.processMovementQueue()
             }
+          }
+
+          // Handle inventory update (NEW)
+          if (data.type === 'loading_unloading_message') {
+            console.log('🔄 Inventory update for:', data.warehouse_name)
+            this.refreshWarehouseInventory(data.warehouse_name)
           }
         }
         
@@ -935,7 +1034,7 @@ export default {
           if (type === 'Incoming') {
             if(material_type && material_type.indexOf('لوله مقوایی') !== -1) {
               return [
-                { x: 350, y: 540 },  // W1
+                { x: 350, y: 500 },  // W1
                 { x: 350, y: 300 }   // Anbar Salon Tolid
               ];
             }
@@ -943,40 +1042,40 @@ export default {
               switch(unload_location) {
                 case 'Anbar_Salon_Tolid':
                   return [
-                    { x: 350, y: 540 },  // W1
+                    { x: 350, y: 500 },  // W1
                     { x: 350, y: 300 }   // W1
                   ];
                 case 'Anbar_Sangin':
                   return [
-                    { x: 350, y: 540 },   // W1
+                    { x: 350, y: 500 },   // W1
                     { x: 350, y: 280 },   // turn right towards anbar sangin
                     { x: 640, y: 280 },   // reach anbar sangin
                     { x: 640, y: 480 },   // anbar sangin
                     ];
                 case 'Anbar_Koochak':
                   return [
-                    { x: 350, y: 540 },  // W1
+                    { x: 350, y: 500 },  // W1
                     { x: 350, y: 260 },  // turn right towards anbar koochak
                     { x: 360, y: 260 },  // turn left towards anbar koochak
                     { x: 360, y: 150 },  // Anbar koochak
                   ];
                 case'Anbar_Parvandeh':
                   return [
-                    { x: 350, y: 540 },  // W1
+                    { x: 350, y: 500 },  // W1
                     { x: 350, y: 260 },  // turn right towards anbar Parvandeh
                     { x: 360, y: 260 },  // turn left towards anbar Parvandeh
                     { x: 360, y: 120 },  // Anbar Parvandeh            
                   ];
                 case 'Anbar_Mohavath_Homayoun':
                   return [
-                    { x: 350, y: 540 },  // W1
+                    { x: 350, y: 500 },  // W1
                     { x: 350, y: 260 },  // turn right towards anbar Mohavath_Homayoun
                     { x: 460, y: 260 },  // turn left towards anbar Mohavath_Homayoun
                     { x: 460, y: 200 },  // Anbar Mohavath_Homayoun            
                   ];
                 case 'Anbar_Khamir_Ghadim':
                   return [
-                    { x: 350, y: 540 },  // W1
+                    { x: 350, y: 500 },  // W1
                     { x: 350, y: 260 },  // turn right towards anbar Mohavath_Homayoun
                     { x: 600, y: 260 },  // turn left towards anbar Mohavath_Homayoun
                     { x: 600, y: 150 },  // Anbar Mohavath_Homayoun            
@@ -995,13 +1094,13 @@ export default {
                   ];
                 case 'Anbar_PAK':
                   return [
-                    { x: 350, y: 540 },  // W1
+                    { x: 350, y: 500 },  // W1
                     { x: 350, y: 820 },  // towards out of factory
                     { x: 1350, y: 820 }, // Start from current or W1
                   ];
                 case 'Anbar_Akhal':
                   return [
-                    { x: 350, y: 540 },  // W1
+                    { x: 350, y: 500 },  // W1
                     { x: 350, y: 830 },  // towards out of factory
                     { x: 120, y: 830 },  // Start from current or W1
                   ];
@@ -1013,7 +1112,7 @@ export default {
                   }
                   else {
                     return [
-                      { x: 350, y: 540 }   // W1
+                      { x: 350, y: 500 }   // W1
                     ];
                   }
               }
@@ -1023,27 +1122,29 @@ export default {
             switch(unload_location) {
                 case 'Anbar_Salon_Tolid':
                   return [
-                    { x: 350, y: 540 },
+                    { x: 350, y: 500 },
                     { x: 320, y: 260 },
                     { x: 450, y: 260 },
                   ];
                 case 'Anbar_Sangin':
                   return [
-                    { x: 390, y: 540 },   // w1
-                    { x: 390, y: 300 },   // turn right towards anbar sangin
+                    { x: 350, y: 500 },   // w1
+                    { x: 350, y: 300 },   // turn right towards anbar sangin
                     { x: 660, y: 300 },   // reach anbar sangin
                     { x: 660, y: 560 },   // turn right towards W1
                   ];
                 case 'Anbar_Khamir_Ghadim':
                   return [
-                    { x: 390, y: 540 },  // W1
+                    { x: 350, y: 500 },  // W1
                     { x: 350, y: 260 },  // turn right towards anbar Mohavath_Homayoun
-                    { x: 600, y: 260 },  // turn left towards anbar Mohavath_Homayoun
-                    { x: 600, y: 150 },  // Anbar Mohavath_Homayoun            
+                    { x: 680, y: 260 },  // turn left towards anbar Mohavath_Homayoun
+                    { x: 680, y: 140 },  // turn left towards anbar Mohavath_Homayoun
+                    { x: 580, y: 140 },  // turn left towards anbar Mohavath_Homayoun
+                    // { x: 640, y: 230 },  // Anbar Mohavath_Homayoun            
                   ];
                 default: 
                   return [
-                    { x: 350, y: 580 },  // W1
+                    { x: 350, y: 500 },  // W1
                   ]
             }
           }
@@ -1054,8 +1155,8 @@ export default {
             switch(unload_location) {
               case 'Anbar_Salon_Tolid':
                 return [
-                  { x: 350, y: 260 },     // Anbar Salon Tolid
-                  { x: 350, y: 580 },    // W1
+                  { x: 350, y: 300 },     // Anbar Salon Tolid
+                  { x: 350, y: 620 },    // W1
                 ];
               case 'Anbar_Sangin':
                 return [
@@ -1094,10 +1195,6 @@ export default {
                 ];
               case 'Anbar_Muhvateh_Kardan':
                 return [
-                  // { x: 1090, y: 140 },
-                  // { x: 1150, y: 140 },    // Anbar Muhvateh Kordan  
-                  // { x: 1150, y: 370 },    // W2
-
                   { x: 1090, y: 140 },  // move backward to Anbar_Khamir_Kordan     
                   { x: 1150, y: 180 },    // Before turning right
                   { x: 1150, y: 350 }     // Turn right towards W2
@@ -1131,26 +1228,26 @@ export default {
             switch(unload_location) {
               case 'Anbar_Salon_Tolid':
                 return [
-                  { x: 350, y: 300 },   // Anbar Salon Tolid
-                  { x: 390, y: 540 },  // W1
+                  { x: 350, y: 260 },   // Anbar Salon Tolid
+                  { x: 350, y: 620 },  // W1
                 ];               
               case 'Anbar_Sangin':
                 return [
                   { x: 660, y: 560 },   // anbar sangin
                   { x: 660, y: 300 },   // turn left 
-                  { x: 390, y: 300 },   // turn left towards W1
-                  { x: 390, y: 540 },   // W1
+                  { x: 350, y: 300 },   // turn left towards W1
+                  { x: 350, y: 620 },   // W1
                 ];
               case 'Anbar_Khamir_Ghadim':
                 return [
-                  { x: 600, y: 200 },  // Anbar Mohavath Kordan            
-                  { x: 600, y: 300 },  // turn right towards anbar salon tolid
-                  { x: 390, y: 300 },  // turn left towards W1
-                  { x: 390, y: 540 },  // W1
+                  { x: 600, y: 140 },  // Anbar Mohavath Kordan            
+                  { x: 600, y: 260 },  // turn right towards anbar salon tolid
+                  { x: 350, y: 260 },  // turn left towards W1
+                  { x: 350, y: 620 },  // W1
                 ];
               default: 
                 return [
-                  { x: 390, y: 540 },  // W1
+                  { x: 350, y: 620 },  // W1
                 ]
             }
           }
@@ -1159,42 +1256,42 @@ export default {
             if(material_type && material_type.indexOf('آخال') !== -1) {
               return [
                 { x: 1140, y: 410 },
-                { x: 1070, y: 410 },
-                { x: 1070, y: 650 },
+                { x: 1070, y: 550 },
+                { x: 1070, y: 720 },
               ];
             } else {
               return [
-                currentPos || { x: 390, y: 540 },
-                { x: 390, y: 540 },
-                { x: 390, y: 650 },
+                currentPos || { x: 350, y: 540 },
+                { x: 350, y: 600 },
+                { x: 350, y: 720 },
               ];            
             }        
           } else {
             return [
-                currentPos || { x: 390, y: 540 },
-                { x: 390, y: 540 },
-                { x: 390, y: 650 },
+                currentPos || { x: 350, y: 540 },
+                { x: 350, y: 600 },
+                { x: 350, y: 720 },
               ];            
           }
         case 'Delivered':
           if (type === 'Incoming') {
             if(material_type && material_type.indexOf('آخال') !== -1) {
               return [
-                currentPos || { x: 1070, y: 650 },
+                currentPos || { x: 1070, y: 720 },
                 { x: 1070, y: 800 },   // Street
                 { x: 0, y: 800 }   // Street
               ];
             } else {
               return [
-                currentPos || { x: 390, y: 650 },
-                { x: 390, y: 800 },   // Street
+                currentPos || { x: 350, y: 720 },
+                { x: 350, y: 800 },   // Street
                 { x: 0, y: 800 }   // Street
               ];            
             }        
           } else {
             return [
-                currentPos || { x: 390, y: 650 },
-                { x: 390, y: 800 }, 
+                currentPos || { x: 350, y: 720 },
+                { x: 350, y: 800 }, 
                 { x: 0, y: 800 }   // Street
               ];            
           }          
@@ -2170,6 +2267,232 @@ export default {
         }
         return false;
     },
+
+    /**
+     * Get warehouse cylinders - one full + one half per width group
+     */    
+    getWarehouseCylinders(warehouseName) {
+      const details = this.warehouseInventoryDetails[warehouseName];
+      if (!details || !details.products || !Array.isArray(details.products)) {
+        return [];
+      }
+      
+      const config = this.cylinderConfig[warehouseName];
+      if (!config) return [];
+      
+      const cylinders = [];
+      let groupIndex = 0;
+      
+      // For each width group, create max 2 cylinders (1 full + 1 half if remainder)
+      details.products.forEach(widthGroup => {
+        const { width, count, weight } = widthGroup;
+        
+        // Calculate quotient and remainder
+        const quotient = Math.floor(count / 14);
+        const remainder = count % 14;
+        const hasHalf = remainder > 0;
+        
+        // Add gap between groups (5px)
+        const groupGap = 5;
+
+        // Calculate position for this group (2 cylinders max per group)
+        const groupsPerRow = Math.floor(config.cylindersPerRow / 2); // Each group takes 2 slots
+        const row = Math.floor(groupIndex / groupsPerRow);
+        const col = groupIndex % groupsPerRow;
+        
+        if (row >= config.maxRows) return;
+        
+        // Base X position for this group (spacing * 2 for pair + gap between groups)
+        const groupWidth = config.spacingX * 2;  // Width for full + half
+        const baseX = config.startX + (col * (groupWidth + groupGap));
+        const baseY = config.startY + (row * config.spacingY);
+        
+        // Full cylinder (only if quotient > 0)
+        if (quotient > 0) {
+          cylinders.push({
+            id: `${warehouseName}-${width}-full`,
+            x: baseX,
+            y: baseY,
+            rx: config.radius.rx,
+            ry: config.radius.ry,
+            height: config.height,
+            isFull: true,
+            width: width,
+            quotient: quotient,
+            reelCount: quotient * 14,
+            weight: ((weight / count) * (quotient * 14)).toFixed(2),
+            hasHalf: hasHalf,
+            groupWidth: hasHalf ? config.spacingX : 0
+          });
+        }
+        
+        // Half cylinder for remainder (if exists)
+        if (hasHalf) {
+          cylinders.push({
+            id: `${warehouseName}-${width}-half`,
+            x: quotient > 0 ? baseX + config.spacingX : baseX,  // Position at baseX if no full cylinder
+            y: baseY,
+            rx: config.radius.rx,
+            ry: config.radius.ry,
+            height: config.height / 2,  // Half height
+            isFull: false,
+            width: width,
+            quotient: 0,
+            reelCount: remainder,
+            weight: ((weight / count) * remainder).toFixed(2),
+            showBracket: quotient === 0  // Show bracket when it's the only cylinder
+          });
+        }
+        
+        groupIndex++;
+      });
+      
+      return cylinders;
+    },
+
+    /**
+     * Get warehouse akhal packs for visualization
+     */
+    getWarehouseAkhalPacks(warehouseName) {
+      const details = this.warehouseInventoryDetails[warehouseName];
+      if (!details || !details.akhals || !Array.isArray(details.akhals) || details.akhals.length === 0) {
+        return [];
+      }
+      
+      const config = this.akhalPackConfig[warehouseName];
+      if (!config) return [];
+      
+      const packs = [];
+      let packIndex = 0;
+      const maxPacks = config.packsPerRow * config.maxRows;
+      
+      // For each akhal kind, create one pack
+      details.akhals.forEach(akhalGroup => {
+        if (packIndex >= maxPacks) return;
+        
+        const { kind, weight } = akhalGroup;
+        
+        const row = Math.floor(packIndex / config.packsPerRow);
+        const col = packIndex % config.packsPerRow;
+        
+        packs.push({
+          id: `${warehouseName}-akhal-${kind}`,
+          x: config.startX + (col * config.spacingX),
+          y: config.startY + (row * config.spacingY),
+          kind: kind,
+          weight: weight
+        });
+        
+        packIndex++;
+      });
+      
+      return packs;
+    },
+
+    /**
+     * Determine if forklift should show reel instead of cube
+     * @param {string} context - 'shipment' or 'warehouse'
+     * @param {Object} data - shipment object or null for warehouse movement
+     */
+    shouldShowReel(context, data = null) {
+      const reelWarehouses = ['Anbar_Salon_Tolid', 'Anbar_Khamir_Ghadim', 'Anbar_Sangin'];
+      
+      if (context === 'shipment' && data) {
+        // Outgoing shipments = loading truck with reels
+        return data.shipment_type === 'Outgoing';
+      }
+      
+      if (context === 'warehouse' && this.activeWarehouseMovement) {
+        // Check if movement is between reel warehouses
+        const fromAnbar = this.activeWarehouseMovement.from_anbar;
+        const toAnbar = this.activeWarehouseMovement.to_anbar;
+        return reelWarehouses.includes(fromAnbar) || reelWarehouses.includes(toAnbar);
+      }
+      
+      return false;
+    },
+
+    /**
+     * Show tooltip for cylinder
+     */
+    showCylinderTooltip(event, cylinder) {
+      let content = '';
+      if (cylinder.isFull) {
+        const totalReels = cylinder.quotient * 14;
+        content = `${cylinder.width}mm × ${cylinder.quotient} (${totalReels} reels) - ${cylinder.weight}t`;
+      } else {
+        content = `${cylinder.width}mm (${cylinder.reelCount} reels) - ${cylinder.weight}t`;
+      }
+      
+      this.tooltip = {
+        visible: true,
+        content: content,
+        x: cylinder.x,
+        y: cylinder.y - 25
+      };
+    },
+
+    /**
+     * Show tooltip for Akhal pack
+     */
+    showAkhalTooltip(event, pack) {
+      const content = `${pack.kind} - ${pack.weight}t`;
+      
+      this.tooltip = {
+        visible: true,
+        content: content,
+        x: pack.x + 20,
+        y: pack.y - 10
+      };
+    },
+
+    /**
+     * Hide tooltip
+     */
+    hideTooltip() {
+      this.tooltip.visible = false;
+    },
+
+    /**
+     * Refresh inventory for a specific warehouse after load/unload
+     * @param {string} warehouseName - The warehouse to refresh
+     */
+    async refreshWarehouseInventory(warehouseName) {
+      console.log(`🔄 Refreshing inventory for: ${warehouseName}`)
+      
+      try {
+        let response
+        
+        // Use different API for Anbar_Salon_Tolid
+        if (warehouseName === 'Anbar_Salon_Tolid') {
+          response = await axios.get('/myapp/api/getAnbarSalonTolidDetails')
+        } else {
+          response = await axios.get(`/myapp/api/getWarehouseInventoryDetails?warehouse=${warehouseName}`)
+        }
+        
+        if (response.data.status === 'success') {
+          // Update only the specific warehouse in warehouseInventoryDetails
+          if (warehouseName === 'Anbar_Salon_Tolid') {
+            // Anbar_Salon_Tolid returns its data directly
+            this.warehouseInventoryDetails[warehouseName] = response.data.data
+          } else {
+            // Other warehouses return { warehouse_name: data }
+            this.warehouseInventoryDetails[warehouseName] = response.data.data
+          }
+          
+          // Update the simple count for backward compatibility
+          const data = this.warehouseInventoryDetails[warehouseName]
+          this.warehouseInventory[warehouseName] = data.total_count || 0
+          
+          console.log(`✅ Inventory refreshed for: ${warehouseName}`)
+          
+          // Force Vue to update the cylinders/packs
+          this.$forceUpdate()
+        }
+      } catch (error) {
+        console.error(`❌ Failed to refresh inventory for ${warehouseName}:`, error)
+      }
+    },    
   },
   watch: {
     activeShipments: {
@@ -2260,7 +2583,6 @@ export default {
     }
   }
 }
-
 </script>
 
 <template>
@@ -2295,8 +2617,8 @@ export default {
         
         <!-- Anbar Salon Tolid -->
         <g class="anbar-salon-tolid">
-          <rect x="40" y="10" width="200" height="420" fill="none" stroke="#000" stroke-width="2" />
-          <text x="140" y="420" text-anchor="middle" font-size="12" font-weight="bold">Anbar Salon Tolid</text>
+          <rect x="40" y="10" width="200" height="430" fill="none" stroke="#000" stroke-width="2" />
+          <text x="140" y="430" text-anchor="middle" font-size="12" font-weight="bold">Anbar Salon Tolid</text>
           
           <!-- PM3 Area (increased width, equal gaps on sides and between) -->
           <rect x="50" y="15" width="63" height="230" fill="#f5f5f5" stroke="#000" stroke-width="2" />
@@ -2314,49 +2636,97 @@ export default {
           <rect x="190" y="109" width="36" height="36" fill="#fff" stroke="#000" stroke-width="1.5" />
           <text x="208" y="90" text-anchor="middle" font-size="12" font-weight="bold">PM2</text>
           
-          <!-- Cylinders in Anbar Salon Tolid (2 rows, 3 cylinders, moved up with gap above text, all surfaces white) -->
-          <!-- Row 1 -->
-          <ellipse cx="90" cy="350" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 80,350 L 80,320 L 100,320 L 100,350" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="90" cy="320" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          
-          <ellipse cx="115" cy="350" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 105,350 L 105,320 L 125,320 L 125,350" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="115" cy="320" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          
-          <ellipse cx="140" cy="350" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 130,350 L 130,320 L 150,320 L 150,350" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="140" cy="320" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          
-          <ellipse cx="165" cy="350" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 155,350 L 155,320 L 175,320 L 175,350" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="165" cy="320" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <!-- Dynamic Cylinders(Reels) in Anbar Salon Tolid -->
+          <g v-for="cylinder in getWarehouseCylinders('Anbar_Salon_Tolid')" 
+              :key="cylinder.id"
+              @mouseenter="showCylinderTooltip($event, cylinder)"
+              @mouseleave="hideTooltip"
+              style="cursor: pointer;"
+          >
+            <!-- Group bracket (only for full cylinders) -->
+            <g v-if="cylinder.isFull">
+              <!-- Title above bracket -->
+              <text 
+                :x="cylinder.x + (cylinder.hasHalf ? cylinder.groupWidth/2 : 0)" 
+                :y="cylinder.y - 14" 
+                text-anchor="middle" 
+                font-size="6" 
+                font-weight="bold"
+                fill="#000"
+              >{{ cylinder.width }}mm × {{ cylinder.quotient }}</text>
+              
+              <!-- Bracket shape: ⌐——⌉ -->
+              <path 
+                :d="`M ${cylinder.x - cylinder.rx - 2},${cylinder.y - 4} 
+                    L ${cylinder.x - cylinder.rx - 2},${cylinder.y - 8} 
+                    L ${cylinder.x + (cylinder.hasHalf ? cylinder.groupWidth : 0) + cylinder.rx + 2},${cylinder.y - 8} 
+                    L ${cylinder.x + (cylinder.hasHalf ? cylinder.groupWidth : 0) + cylinder.rx + 2},${cylinder.y - 4}`"
+                fill="none"
+                stroke="#666"
+                stroke-width="1"
+              />
+            </g>
+            
+            <!-- Half cylinder with bracket (when quotient was 0) -->
+            <g v-if="!cylinder.isFull && cylinder.showBracket">
+              <!-- Bracket shape: ⌐——⌉ -->
+              <path 
+                :d="`M ${cylinder.x - cylinder.rx - 2},${cylinder.y - 4} 
+                    L ${cylinder.x - cylinder.rx - 2},${cylinder.y - 8} 
+                    L ${cylinder.x + cylinder.rx + 2},${cylinder.y - 8} 
+                    L ${cylinder.x + cylinder.rx + 2},${cylinder.y - 4}`"
+                fill="none"
+                stroke="#666"
+                stroke-width="1"
+              />
+            </g>
 
-          <ellipse cx="190" cy="350" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 180,350 L 180,320 L 200,320 L 200,350" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="190" cy="320" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+            <!-- Half cylinder title (remainder count) -->
+            <text 
+              v-if="!cylinder.isFull"
+              :x="cylinder.x" 
+              :y="cylinder.y - (cylinder.showBracket ? 12 : 4)" 
+              text-anchor="middle" 
+              font-size="5" 
+              fill="#000"
+            >({{ cylinder.reelCount }})</text>
 
-          <!-- Row 2 -->
-          <ellipse cx="90" cy="390" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 80,390 L 80,360 L 100,360 L 100,390" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="90" cy="360" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          
-          <ellipse cx="115" cy="390" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 105,390 L 105,360 L 125,360 L 125,390" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="115" cy="360" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          
-          <ellipse cx="140" cy="390" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 130,390 L 130,360 L 150,360 L 150,390" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="140" cy="360" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-
-          <ellipse cx="165" cy="390" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 155,390 L 155,360 L 175,360 L 175,390" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="165" cy="360" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          
-          <ellipse cx="190" cy="390" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 180,390 L 180,360 L 200,360 L 200,390" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="190" cy="360" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-
+            <!-- Bottom ellipse -->
+            <ellipse 
+              :cx="cylinder.x" 
+              :cy="cylinder.y + cylinder.height" 
+              :rx="cylinder.rx" 
+              :ry="cylinder.ry" 
+              fill="#f3dab0" 
+              stroke="#000" 
+              stroke-width="1.5" 
+            />
+            <!-- Cylinder body -->
+            <path 
+              :d="`M ${cylinder.x - cylinder.rx},${cylinder.y + cylinder.height} L ${cylinder.x - cylinder.rx},${cylinder.y} L ${cylinder.x + cylinder.rx},${cylinder.y} L ${cylinder.x + cylinder.rx},${cylinder.y + cylinder.height}`" 
+              fill="#f3dab0" 
+              stroke="#000" 
+              stroke-width="1.5" 
+            />
+            <!-- Top ellipse -->
+            <ellipse 
+              :cx="cylinder.x" 
+              :cy="cylinder.y" 
+              :rx="cylinder.rx" 
+              :ry="cylinder.ry" 
+              fill="#f3dab0" 
+              stroke="#000" 
+              stroke-width="1.5" 
+            />
+            <!-- Weight label on body -->
+            <text 
+              :x="cylinder.x" 
+              :y="cylinder.y + cylinder.height/2 + 2" 
+              text-anchor="middle" 
+              font-size="5" 
+              fill="#000"
+            >{{ cylinder.weight }}t</text>
+          </g>
         </g>
 
         <!-- Restaurant -->
@@ -2385,78 +2755,132 @@ export default {
           <!-- Pallet A 22 cube -->
           <g transform="translate(305, 150)">
             <!-- Front face (height doubled) -->
-            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-            <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
-            <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">A</text>
-            <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">22</text>
+            <path d="M 0,12 L 35,12 L 35,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+            <text x="18" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
+            <text x="18" y="32" text-anchor="middle" font-size="7" font-weight="bold">A</text>
+            <text x="18" y="40" text-anchor="middle" font-size="7" font-weight="bold">22</text>
             <!-- Top face -->
-            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+            <path d="M 0,12 L 12,5 L 47,5 L 35,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
             <!-- Right side face -->
-            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+            <path d="M 35,12 L 47,5 L 47,37 L 35,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
           </g>
         </g>
 
         <!-- Anbar Khamir Ghadim -->
         <g class="anbar-khamir-ghadim">
           <path d="M 710,69 L 240,69 L 240,10 L 900,10 L 900,69" fill="none" stroke="#000" stroke-width="2" />
-          <path d="M 710,69 L 710,123 L 900,123 L 900,69" fill="none" stroke="#000" stroke-width="2" />
-          <path d="M 710,123 L 710,173 L 900,173 L 900,123" fill="none" stroke="#000" stroke-width="2" />
-          <path d="M 710,173 L 710,223 L 900,223 L 900,173" fill="none" stroke="#000" stroke-width="2" />
-          <ellipse cx="538" cy="40" rx="90" ry="25" fill="#fff0d5" stroke="#000" stroke-width="1.5" />
-          <text x="540" y="43" text-anchor="middle" font-size="12" font-weight="bold">Anbar Khamir Ghadim</text>
-          <text x="800" y="150" text-anchor="middle" font-size="11" font-weight="bold">Water Station</text>
-          <text x="800" y="200" text-anchor="middle" font-size="11" font-weight="bold">Gas Station</text>
+          <path d="M 710,69 L 710,140 L 900,140 L 900,69" fill="none" stroke="#000" stroke-width="2" />
+          <path d="M 710,140 L 710,180 L 900,180 L 900,140" fill="none" stroke="#000" stroke-width="2" />
+          <path d="M 710,180 L 710,223 L 900,223 L 900,180" fill="none" stroke="#000" stroke-width="2" />
+          <ellipse cx="485" cy="40" rx="90" ry="25" fill="#fff0d5" stroke="#000" stroke-width="1.5" />
+          <text x="500" y="43" text-anchor="middle" font-size="12" font-weight="bold">Anbar Khamir Ghadim</text>
+          <text x="800" y="165" text-anchor="middle" font-size="11" font-weight="bold">Water Station</text>
+          <text x="800" y="210" text-anchor="middle" font-size="11" font-weight="bold">Gas Station</text>
           
-          <rect x="300" y="10" width="100" height="30" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <text x="350" y="30" text-anchor="middle" font-size="11" font-weight="bold">Laboratory</text>
+          <rect x="270" y="10" width="100" height="30" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <text x="320" y="30" text-anchor="middle" font-size="11" font-weight="bold">Laboratory</text>
           
-          <!-- Pallet B 12 cube -->
-          <g transform="translate(735, 15)">
-            <!-- Front face (height doubled) -->
-            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-            <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
-            <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
-            <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
+          <!-- Dynamic Akhal Packs in Anbar Khamir Ghadim -->
+          <g v-for="pack in getWarehouseAkhalPacks('Anbar_Khamir_Ghadim')" 
+              :key="pack.id"
+              :transform="`translate(${pack.x}, ${pack.y})`"
+              @mouseenter="showAkhalTooltip($event, pack)"
+              @mouseleave="hideTooltip"
+              style="cursor: pointer;"            
+          >
+            <!-- Front face -->
+            <path d="M 0,12 L 35,12 L 35,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+            <text x="18" y="26" text-anchor="middle" font-size="7" font-weight="bold">{{ pack.kind }}</text>
+            <text x="18" y="38" text-anchor="middle" font-size="6">{{ pack.weight }}t</text>
             <!-- Top face -->
-            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+            <path d="M 0,12 L 12,5 L 47,5 L 35,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
             <!-- Right side face -->
-            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
-          </g>
-          
-          <!-- Pallet C 17 cube -->
-          <g transform="translate(790, 15)">
-            <!-- Front face (height doubled) -->
-            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-            <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
-            <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">C</text>
-            <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">17</text>
-            <!-- Top face -->
-            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
-            <!-- Right side face -->
-            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+            <path d="M 35,12 L 47,5 L 47,37 L 35,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
           </g>
 
-          <!-- Reels in Anbar Khamir Ghadim -->
-          <ellipse cx="750" cy="100" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 740,100 L 740,70 L 760,70 L 760,100" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="750" cy="70" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          
-          <ellipse cx="775" cy="100" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 765,100 L 765,70 L 785,70 L 785,100" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="775" cy="70" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          
-          <ellipse cx="800" cy="100" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 790,100 L 790,70 L 810,70 L 810,100" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="800" cy="70" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <!-- Dynamic Cylinders(Reels) in Anbar Khamir Ghadim -->
+          <g v-for="cylinder in getWarehouseCylinders('Anbar_Khamir_Ghadim')" 
+              :key="cylinder.id"
+              @mouseenter="showCylinderTooltip($event, cylinder)"
+              @mouseleave="hideTooltip"
+              style="cursor: pointer;"
+          >
+            <!-- Group bracket (only for full cylinders) -->
+            <g v-if="cylinder.isFull">
+              <!-- Title above bracket -->
+              <text 
+                :x="cylinder.x + (cylinder.hasHalf ? cylinder.groupWidth/2 : 0)" 
+                :y="cylinder.y - 14" 
+                text-anchor="middle" 
+                font-size="6" 
+                font-weight="bold"
+                fill="#000"
+              >{{ cylinder.width }}mm × {{ cylinder.quotient }}</text>
+              
+              <!-- Bracket shape: ⌐——⌉ -->
+              <path 
+                :d="`M ${cylinder.x - cylinder.rx - 2},${cylinder.y - 4} 
+                    L ${cylinder.x - cylinder.rx - 2},${cylinder.y - 8} 
+                    L ${cylinder.x + (cylinder.hasHalf ? cylinder.groupWidth : 0) + cylinder.rx + 2},${cylinder.y - 8} 
+                    L ${cylinder.x + (cylinder.hasHalf ? cylinder.groupWidth : 0) + cylinder.rx + 2},${cylinder.y - 4}`"
+                fill="none"
+                stroke="#666"
+                stroke-width="1"
+              />
+            </g>
+            
+            <!-- Half cylinder with bracket (when quotient was 0) -->
+            <g v-if="!cylinder.isFull && cylinder.showBracket">
+              <!-- Bracket shape: ⌐——⌉ -->
+              <path 
+                :d="`M ${cylinder.x - cylinder.rx - 2},${cylinder.y - 4} 
+                    L ${cylinder.x - cylinder.rx - 2},${cylinder.y - 8} 
+                    L ${cylinder.x + cylinder.rx + 2},${cylinder.y - 8} 
+                    L ${cylinder.x + cylinder.rx + 2},${cylinder.y - 4}`"
+                fill="none"
+                stroke="#666"
+                stroke-width="1"
+              />
+            </g>
 
-          <ellipse cx="825" cy="100" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 815,100 L 815,70 L 835,70 L 835,100" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="825" cy="70" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+            <!-- Half cylinder title (remainder count) -->
+            <text 
+              v-if="!cylinder.isFull"
+              :x="cylinder.x" 
+              :y="cylinder.y - (cylinder.showBracket ? 12 : 4)" 
+              text-anchor="middle" 
+              font-size="5" 
+              fill="#000"
+            >({{ cylinder.reelCount }})</text>
 
-          <ellipse cx="850" cy="100" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 840,100 L 840,70 L 860,70 L 860,100" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="850" cy="70" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+            <!-- Bottom ellipse -->
+            <ellipse :cx="cylinder.x" :cy="cylinder.y + cylinder.height" :rx="cylinder.rx" :ry="cylinder.ry" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+            <!-- Cylinder body -->
+            <path :d="`M ${cylinder.x - cylinder.rx},${cylinder.y + cylinder.height} L ${cylinder.x - cylinder.rx},${cylinder.y} L ${cylinder.x + cylinder.rx},${cylinder.y} L ${cylinder.x + cylinder.rx},${cylinder.y + cylinder.height}`" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+            <!-- Top ellipse -->
+            <ellipse :cx="cylinder.x" :cy="cylinder.y" :rx="cylinder.rx" :ry="cylinder.ry" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+            <!-- Weight label on body -->
+            <text :x="cylinder.x" :y="cylinder.y + cylinder.height/2 + 2" text-anchor="middle" font-size="5" fill="#000">{{ cylinder.weight }}t</text>
+          </g>          
+        </g>
 
+        <!-- Anbar Mohavate Homayoun -->
+        <!-- Dynamic Akhal Packs in Anbar Mohavate Homayoun -->
+        <g v-for="pack in getWarehouseAkhalPacks('Anbar_Mohavate_Homayoun')" 
+            :key="pack.id" 
+            :transform="`translate(${pack.x}, ${pack.y})`"
+            @mouseenter="showAkhalTooltip($event, pack)"
+            @mouseleave="hideTooltip"
+            style="cursor: pointer;"
+        >          
+          <!-- Front face -->
+          <path d="M 0,12 L 35,12 L 35,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+          <text x="18" y="26" text-anchor="middle" font-size="7" font-weight="bold">{{ pack.kind }}</text>
+          <text x="18" y="38" text-anchor="middle" font-size="6">{{ pack.weight }}t</text>
+          <!-- Top face -->
+          <path d="M 0,12 L 12,5 L 47,5 L 35,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+          <!-- Right side face -->
+          <path d="M 35,12 L 47,5 L 47,37 L 35,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
         </g>
 
         <!-- Weight Station 1 -->
@@ -2469,82 +2893,126 @@ export default {
 
         <!-- Anbar Sangin -->
         <g class="anbar-sangin">
-          <rect x="710" y="345" width="190" height="75" fill="none" stroke="#000" stroke-width="2" />
-          <rect x="710" y="420" width="190" height="170" fill="none" stroke="#000" stroke-width="2" />
+          <rect x="710" y="345" width="190" height="55" fill="none" stroke="#000" stroke-width="2" />
+          <rect x="710" y="400" width="190" height="210" fill="none" stroke="#000" stroke-width="2" />
           <text x="800" y="380" text-anchor="middle" font-size="12" font-weight="bold">Anbar Abzar</text>
-          <text x="800" y="580" text-anchor="middle" font-size="12" font-weight="bold">Anbar Sangin</text>
+          <text x="800" y="600" text-anchor="middle" font-size="12" font-weight="bold">Anbar Sangin</text>
           
           <!-- Pile of 5 Chemical Sacks (3:5:2 ratio = 30:50:20 pixels) -->
-          <g class="chemical-sacks" transform="translate(750, 440)">
+          <g class="chemical-sacks" transform="translate(730, 400)">
             <!-- Bottom Row - 3 Sacks -->
             <!-- Sack 1 (bottom left) -->
-            <g transform="translate(33, 50)">
-              <rect x="0" y="0" width="20" height="30" rx="3" fill="#f5e6dc" stroke="#5D2906" stroke-width="1.5"/>
+            <g transform="translate(33, 40)">
+              <rect x="0" y="0" width="20" height="20" rx="3" fill="#f5e6dc" stroke="#5D2906" stroke-width="1.5"/>
               <path d="M 0,0 L 10,-10 L 25,-10 L 20,0 Z" fill="#fabc9f" stroke="#5D2906" stroke-width="1"/>
-              <path d="M 20,0 L 25,-10 L 25,25 L 20,30 Z" fill="#a3a19e" stroke="#5D2906" stroke-width="1"/>
+              <path d="M 20,0 L 25,-10 L 25,15 L 20,20 Z" fill="#a3a19e" stroke="#5D2906" stroke-width="1"/>
               <text x="15" y="28" text-anchor="middle" font-size="6" fill="#fff" font-weight="bold">CHEM</text>
             </g>
             
             <!-- Sack 2 (bottom center) -->
-            <g transform="translate(58, 50)">
-              <rect x="0" y="0" width="20" height="30" rx="3" fill="#f5e6dc" stroke="#5D2906" stroke-width="1.5"/>
+            <g transform="translate(58, 40)">
+              <rect x="0" y="0" width="20" height="20" rx="3" fill="#f5e6dc" stroke="#5D2906" stroke-width="1.5"/>
               <path d="M 0,0 L 10,-10 L 25,-10 L 20,0 Z" fill="#fabc9f" stroke="#5D2906" stroke-width="1"/>
-              <path d="M 20,0 L 25,-10 L 25,25 L 20,30 Z" fill="#a3a19e" stroke="#5D2906" stroke-width="1"/>
+              <path d="M 20,0 L 25,-10 L 25,15 L 20,20 Z" fill="#a3a19e" stroke="#5D2906" stroke-width="1"/>
               <text x="15" y="28" text-anchor="middle" font-size="6" fill="#fff" font-weight="bold">CHEM</text>
             </g>
             
             <!-- Sack 3 (bottom right) -->
-            <g transform="translate(83, 50)">
-              <rect x="0" y="0" width="20" height="30" rx="3" fill="#f5e6dc" stroke="#5D2906" stroke-width="1.5"/>
+            <g transform="translate(83, 40)">
+              <rect x="0" y="0" width="20" height="20" rx="3" fill="#f5e6dc" stroke="#5D2906" stroke-width="1.5"/>
               <path d="M 0,0 L 10,-10 L 25,-10 L 20,0 Z" fill="#fabc9f" stroke="#5D2906" stroke-width="1"/>
-              <path d="M 20,0 L 25,-10 L 25,25 L 20,30 Z" fill="#a3a19e" stroke="#5D2906" stroke-width="1"/>
+              <path d="M 20,0 L 25,-10 L 25,15 L 20,20 Z" fill="#a3a19e" stroke="#5D2906" stroke-width="1"/>
               <text x="15" y="28" text-anchor="middle" font-size="6" fill="#fff" font-weight="bold">CHEM</text>
             </g>
             
             <!-- Top Row - 2 Sacks (stacked on bottom row) -->
             <!-- Sack 4 (top left) -->
             <g transform="translate(50, 20)">
-              <rect x="0" y="0" width="20" height="30" rx="3" fill="#fabc9f" stroke="#5D2906" stroke-width="1.5"/>
+              <rect x="0" y="0" width="20" height="20" rx="3" fill="#fabc9f" stroke="#5D2906" stroke-width="1.5"/>
               <path d="M 0,0 L 10,-10 L 25,-10 L 20,0 Z" fill="#CD853F" stroke="#5D2906" stroke-width="1"/>
-              <path d="M 20,0 L 25,-10 L 25,25 L 20,30 Z" fill="#f5e6dc" stroke="#5D2906" stroke-width="1"/>
+              <path d="M 20,0 L 25,-10 L 25,15 L 20,20 Z" fill="#f5e6dc" stroke="#5D2906" stroke-width="1"/>
               <text x="15" y="28" text-anchor="middle" font-size="6" fill="#fff" font-weight="bold">CHEM</text>
             </g>
             
             <!-- Sack 5 (top right) -->
             <g transform="translate(70, 20)">
-              <rect x="0" y="0" width="20" height="30" rx="3" fill="#fabc9f" stroke="#5D2906" stroke-width="1.5"/>
+              <rect x="0" y="0" width="20" height="20" rx="3" fill="#fabc9f" stroke="#5D2906" stroke-width="1.5"/>
               <path d="M 0,0 L 10,-10 L 25,-10 L 20,0 Z" fill="#CD853F" stroke="#5D2906" stroke-width="1"/>
-              <path d="M 20,0 L 25,-10 L 25,25 L 20,30 Z" fill="#f5e6dc" stroke="#5D2906" stroke-width="1"/>
+              <path d="M 20,0 L 25,-10 L 25,15 L 20,20 Z" fill="#f5e6dc" stroke="#5D2906" stroke-width="1"/>
               <text x="15" y="28" text-anchor="middle" font-size="6" fill="#fff" font-weight="bold">CHEM</text>
             </g>
           </g>
 
-          <!-- Reels in Anbar Khamir Ghadim -->
-          <ellipse cx="750" cy="560" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 740,560 L 740,530 L 760,530 L 760,560" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="750" cy="530" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          
-          <ellipse cx="775" cy="560" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 765,560 L 765,530 L 785,530 L 785,560" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="775" cy="530" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          
-          <ellipse cx="800" cy="560" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 790,560 L 790,530 L 810,530 L 810,560" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="800" cy="530" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+          <!-- Dynamic Cylinders(Reels) in Anbar Sangin -->
+          <g v-for="cylinder in getWarehouseCylinders('Anbar_Sangin')" 
+              :key="cylinder.id"
+              @mouseenter="showCylinderTooltip($event, cylinder)"
+              @mouseleave="hideTooltip"
+              style="cursor: pointer;"
+          >
+            <!-- Group bracket (only for full cylinders) -->
+            <g v-if="cylinder.isFull">
+              <!-- Title above bracket -->
+              <text 
+                :x="cylinder.x + (cylinder.hasHalf ? cylinder.groupWidth/2 : 0)" 
+                :y="cylinder.y - 14" 
+                text-anchor="middle" 
+                font-size="6" 
+                font-weight="bold"
+                fill="#000"
+              >{{ cylinder.width }}mm × {{ cylinder.quotient }}</text>
+              
+              <!-- Bracket shape: ⌐——⌉ -->
+              <path 
+                :d="`M ${cylinder.x - cylinder.rx - 2},${cylinder.y - 4} 
+                    L ${cylinder.x - cylinder.rx - 2},${cylinder.y - 8} 
+                    L ${cylinder.x + (cylinder.hasHalf ? cylinder.groupWidth : 0) + cylinder.rx + 2},${cylinder.y - 8} 
+                    L ${cylinder.x + (cylinder.hasHalf ? cylinder.groupWidth : 0) + cylinder.rx + 2},${cylinder.y - 4}`"
+                fill="none"
+                stroke="#666"
+                stroke-width="1"
+              />
+            </g>
+                        
+            <!-- Half cylinder with bracket (when quotient was 0) -->
+            <g v-if="!cylinder.isFull && cylinder.showBracket">
+              <!-- Bracket shape: ⌐——⌉ -->
+              <path 
+                :d="`M ${cylinder.x - cylinder.rx - 2},${cylinder.y - 4} 
+                    L ${cylinder.x - cylinder.rx - 2},${cylinder.y - 8} 
+                    L ${cylinder.x + cylinder.rx + 2},${cylinder.y - 8} 
+                    L ${cylinder.x + cylinder.rx + 2},${cylinder.y - 4}`"
+                fill="none"
+                stroke="#666"
+                stroke-width="1"
+              />
+            </g>
 
-          <ellipse cx="825" cy="560" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 815,560 L 815,530 L 835,530 L 835,560" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="825" cy="530" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-
-          <ellipse cx="850" cy="560" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <path d="M 840,560 L 840,530 L 860,530 L 860,560" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
-          <ellipse cx="850" cy="530" rx="10" ry="4" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+            <!-- Half cylinder title (remainder count) -->
+            <text 
+              v-if="!cylinder.isFull"
+              :x="cylinder.x" 
+              :y="cylinder.y - (cylinder.showBracket ? 12 : 4)" 
+              text-anchor="middle" 
+              font-size="5" 
+              fill="#000"
+            >({{ cylinder.reelCount }})</text>
+                        
+            <!-- Bottom ellipse -->
+            <ellipse :cx="cylinder.x" :cy="cylinder.y + cylinder.height" :rx="cylinder.rx" :ry="cylinder.ry" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+            <!-- Cylinder body -->
+            <path :d="`M ${cylinder.x - cylinder.rx},${cylinder.y + cylinder.height} L ${cylinder.x - cylinder.rx},${cylinder.y} L ${cylinder.x + cylinder.rx},${cylinder.y} L ${cylinder.x + cylinder.rx},${cylinder.y + cylinder.height}`" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+            <!-- Top ellipse -->
+            <ellipse :cx="cylinder.x" :cy="cylinder.y" :rx="cylinder.rx" :ry="cylinder.ry" fill="#f3dab0" stroke="#000" stroke-width="1.5" />
+            <!-- Weight label on body -->
+            <text :x="cylinder.x" :y="cylinder.y + cylinder.height/2 + 2" text-anchor="middle" font-size="5" fill="#000">{{ cylinder.weight }}t</text>
+          </g>
         </g>
 
         <!-- QC Area (moved left with gap from right narrow green oval) -->
         <g class="qc-area">
-          <rect x="710" y="590" width="190" height="130" fill="#fff" stroke="#000" stroke-width="2" />
-          <text x="800" y="660" text-anchor="middle" font-size="13" font-weight="bold">QC</text>
+          <rect x="710" y="610" width="190" height="110" fill="#fff" stroke="#000" stroke-width="2" />
+          <text x="800" y="670" text-anchor="middle" font-size="13" font-weight="bold">QC</text>
         </g>
 
         <!-- Narrow Green Ovals (Roads) - Narrower, half height from top -->
@@ -2636,27 +3104,22 @@ export default {
         </g>
 
         <!-- Anbar Mohavate Kordan (Akhal) -->
-        <g transform="translate(975,10)">
-          <!-- Front face (height doubled) -->
-          <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-          <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
-          <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
-          <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
+        <!-- Dynamic Akhal Packs in Anbar Mohavate Kardan -->
+        <g v-for="pack in getWarehouseAkhalPacks('Anbar_Mohavate_Kardan')" 
+            :key="pack.id" 
+            :transform="`translate(${pack.x}, ${pack.y})`"
+            @mouseenter="showAkhalTooltip($event, pack)"
+            @mouseleave="hideTooltip"
+            style="cursor: pointer;"
+        >          
+          <!-- Front face -->
+          <path d="M 0,12 L 35,12 L 35,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+          <text x="18" y="26" text-anchor="middle" font-size="7" font-weight="bold">{{ pack.kind }}</text>
+          <text x="18" y="38" text-anchor="middle" font-size="6">{{ pack.weight }}t</text>
           <!-- Top face -->
-          <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+          <path d="M 0,12 L 12,5 L 47,5 L 35,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
           <!-- Right side face -->
-          <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
-        </g>
-        <g transform="translate(975,50)">
-          <!-- Front face (height doubled) -->
-          <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-          <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
-          <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
-          <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
-          <!-- Top face -->
-          <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
-          <!-- Right side face -->
-          <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+          <path d="M 35,12 L 47,5 L 47,37 L 35,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
         </g>
 
         <!-- Anbar Khamir Kordan-->
@@ -2670,73 +3133,24 @@ export default {
           <text x="1280" y="130" text-anchor="middle" font-size="12" font-weight="bold">Khamir</text>
           <text x="1280" y="145" text-anchor="middle" font-size="12" font-weight="bold">KORDAN</text>
           
-          <!-- Akhal 1 100 cube (height doubled: 20→40) -->g>
-          <g transform="translate(1200, 200)">
-            <!-- Front face (height doubled) -->
-            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-            <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
-            <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
-            <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
+          <!-- Dynamic Akhal Packs in Anbar Khamir Kordan -->
+          <g v-for="pack in getWarehouseAkhalPacks('Anbar_Khamir_Kordan')" 
+              :key="pack.id" 
+              :transform="`translate(${pack.x}, ${pack.y})`"
+              @mouseenter="showAkhalTooltip($event, pack)"
+              @mouseleave="hideTooltip"
+              style="cursor: pointer;"
+          >
+            <!-- Front face -->
+            <path d="M 0,12 L 35,12 L 35,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+            <text x="18" y="26" text-anchor="middle" font-size="7" font-weight="bold">{{ pack.kind }}</text>
+            <text x="18" y="38" text-anchor="middle" font-size="6">{{ pack.weight }}t</text>
             <!-- Top face -->
-            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+            <path d="M 0,12 L 12,5 L 47,5 L 35,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
             <!-- Right side face -->
-            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+            <path d="M 35,12 L 47,5 L 47,37 L 35,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
           </g>
-          <g transform="translate(1255, 200)">
-            <!-- Front face (height doubled) -->
-            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-            <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
-            <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
-            <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
-            <!-- Top face -->
-            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
-            <!-- Right side face -->
-            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
-          </g>
-          <g transform="translate(1310, 200)">
-            <!-- Front face (height doubled) -->
-            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-            <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
-            <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
-            <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
-            <!-- Top face -->
-            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
-            <!-- Right side face -->
-            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
-          </g>
-          <g transform="translate(1200, 240)">
-            <!-- Front face (height doubled) -->
-            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-            <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
-            <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
-            <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
-            <!-- Top face -->
-            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
-            <!-- Right side face -->
-            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
-          </g>
-          <g transform="translate(1255, 240)">
-            <!-- Front face (height doubled) -->
-            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-            <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
-            <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
-            <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
-            <!-- Top face -->
-            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
-            <!-- Right side face -->
-            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
-          </g>
-          <g transform="translate(1310, 240)">
-            <!-- Front face (height doubled) -->
-            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-            <text x="25" y="24" text-anchor="middle" font-size="7" font-weight="bold">Pallet</text>
-            <text x="25" y="32" text-anchor="middle" font-size="7" font-weight="bold">B</text>
-            <text x="25" y="40" text-anchor="middle" font-size="7" font-weight="bold">12</text>
-            <!-- Top face -->
-            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
-            <!-- Right side face -->
-            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
-          </g>
+
 
           <!-- PM4 Area  -->
           <rect x="1290" y="320" width="55" height="300" fill="#f5f5f5" stroke="#000" stroke-width="2" />
@@ -2749,7 +3163,7 @@ export default {
 
         <!-- Office (increased 20%: 108×108, moved up with gap below Kordan) -->
         <g class="office">
-          <rect x="1170" y="670" width="108" height="108" fill="#fff" stroke="#000" stroke-width="2" />
+          <rect x="1170" y="670" width="100" height="80" fill="#fff" stroke="#000" stroke-width="2" />
           <text x="1224" y="729" text-anchor="middle" font-size="12" font-weight="bold">Office</text>
         </g>
 
@@ -2765,16 +3179,47 @@ export default {
         <g class="anbar-pak">
           <rect x="1380" y="460" width="60" height="323" fill="none" stroke="#000" stroke-width="2" />
           <text x="1410" y="620" text-anchor="middle" font-size="12" font-weight="bold" transform="rotate(90 1410 620)">Anbar PAK</text>
-          
-          <!-- Akhal 4 98 cube (height doubled: 16→32) -->
-          <g transform="translate(1375, 480)">
-            <!-- Front face (height doubled) -->
-            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-            <text x="25" y="31" text-anchor="middle" font-size="8" font-weight="bold">Akhal 4 98</text>
-            <!-- Top face (parallelogram) -->
-            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
-            <!-- Right side face (height doubled) -->
-            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+        
+          <!-- Dynamic Akhal Packs in Anbar PAK -->
+          <g v-for="pack in getWarehouseAkhalPacks('Anbar_PAK')" 
+              :key="pack.id"
+              :transform="`translate(${pack.x}, ${pack.y})`"
+              @mouseenter="showAkhalTooltip($event, pack)"
+              @mouseleave="hideTooltip"
+              style="cursor: pointer;"            
+          >            
+          <!-- Front face -->
+            <path d="M 0,12 L 35,12 L 35,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+            <text x="18" y="26" text-anchor="middle" font-size="7" font-weight="bold">{{ pack.kind }}</text>
+            <text x="18" y="38" text-anchor="middle" font-size="6">{{ pack.weight }}t</text>
+            <!-- Top face -->
+            <path d="M 0,12 L 12,5 L 47,5 L 35,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+            <!-- Right side face -->
+            <path d="M 35,12 L 47,5 L 47,37 L 35,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+          </g>        
+        </g>
+
+        <!-- Anbar Akhal -->
+        <g class="anbar-akhal-bottom">
+          <rect x="40" y="843" width="320" height="125" fill="none" stroke="#000" stroke-width="2" />
+          <text x="200" y="860" text-anchor="middle" font-size="12" font-weight="bold">Anbar Akhal</text>          
+
+          <!-- Dynamic Akhal Packs in Anbar Akhal -->
+          <g v-for="pack in getWarehouseAkhalPacks('Anbar_Akhal')" 
+              :key="pack.id"
+              :transform="`translate(${pack.x}, ${pack.y})`"
+              @mouseenter="showAkhalTooltip($event, pack)"
+              @mouseleave="hideTooltip"
+              style="cursor: pointer;"            
+          >            
+          <!-- Front face -->
+            <path d="M 0,12 L 35,12 L 35,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+            <text x="18" y="26" text-anchor="middle" font-size="7" font-weight="bold">{{ pack.kind }}</text>
+            <text x="18" y="38" text-anchor="middle" font-size="6">{{ pack.weight }}t</text>
+            <!-- Top face -->
+            <path d="M 0,12 L 12,5 L 47,5 L 35,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+            <!-- Right side face -->
+            <path d="M 35,12 L 47,5 L 47,37 L 35,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
           </g>
         </g>
 
@@ -2821,60 +3266,30 @@ export default {
         >
           <!-- Forklift Emoji -->
           <text x="0" y="0" font-size="30" text-anchor="middle">🚜</text>
-          
-          <!-- Cargo box - only visible when forklift has cargo -->
-          <text 
-            v-show="warehouseForkliftHasCargo()"
-            x="20" 
-            y="5" 
-            font-size="20" 
-            text-anchor="middle"
-          >📦</text>
-          
+
+          <!-- Cargo - Reel or Box depending on warehouse type -->
+          <g v-show="warehouseForkliftHasCargo()">
+            <!-- Reel (cylinder) for reel warehouse movements -->
+            <g v-if="shouldShowReel('warehouse')" transform="translate(12, -8)">
+              <!-- Bottom ellipse -->
+              <ellipse cx="10" cy="6" rx="5" ry="2" fill="#f3dab0" stroke="#000" stroke-width="1" />
+              <!-- Cylinder body -->
+              <rect x="5" y="-10" width="10" height="16" fill="#f3dab0" stroke="none" />
+              <line x1="5" y1="-10" x2="5" y2="6" stroke="#000" stroke-width="1" />
+              <line x1="15" y1="-10" x2="15" y2="6" stroke="#000" stroke-width="1" />
+              <!-- Top ellipse -->
+              <ellipse cx="10" cy="-10" rx="5" ry="2" fill="#f3dab0" stroke="#000" stroke-width="1" />
+              <line x1="5" y1="8" x2="20" y2="8" stroke="#000" stroke-width="3" />
+            </g>
+            <!-- Box (cube) for other warehouse movements -->
+            <text v-else x="20" y="5" font-size="20" text-anchor="middle">📦</text>
+          </g>
+                    
           <!-- Trip counter badge -->
           <circle cx="-12" cy="-13" r="8" fill="#2196f3" stroke="#fff" stroke-width="2" />
           <text x="-12" y="-10" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">
             {{ activeWarehouseMovement.currentTrip }}/{{ activeWarehouseMovement.quantity }}
           </text>
-        </g>
-
-        <!-- Anbar Akhal -->
-        <g class="anbar-akhal-bottom">
-          <rect x="40" y="843" width="320" height="125" fill="none" stroke="#000" stroke-width="2" />
-          <text x="200" y="860" text-anchor="middle" font-size="12" font-weight="bold">Anbar Akhal</text>
-          
-          <!-- Akhal 3 114 cube -->
-          <g transform="translate(110, 890)">
-            <!-- Front face (height doubled) -->
-            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-            <text x="25" y="31" text-anchor="middle" font-size="8" font-weight="bold">Akhal 3 114</text>
-            <!-- Top face -->
-            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
-            <!-- Right side face -->
-            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
-          </g>
-          
-          <!-- Akhal 4 260 cube -->
-          <g transform="translate(165, 890)">
-            <!-- Front face (height doubled) -->
-            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-            <text x="25" y="31" text-anchor="middle" font-size="8" font-weight="bold">Akhal 4 260</text>
-            <!-- Top face -->
-            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
-            <!-- Right side face -->
-            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
-          </g>
-          
-          <!-- Akhal 2 170 cube -->
-          <g transform="translate(220, 890)">
-            <!-- Front face (height doubled) -->
-            <path d="M 0,12 L 50,12 L 50,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-            <text x="25" y="31" text-anchor="middle" font-size="8" font-weight="bold">Akhal 2 170</text>
-            <!-- Top face -->
-            <path d="M 0,12 L 12,5 L 62,5 L 50,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
-            <!-- Right side face -->
-            <path d="M 50,12 L 62,5 L 62,37 L 50,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
-          </g>
         </g>
 
         <!-- Static truck icons removed - only dynamic trucks from database will show -->
@@ -3332,18 +3747,25 @@ export default {
                   font-size="30" 
                   text-anchor="middle"
                 >🚜</text>
-                
-                <!-- Cargo box - only visible when forklift has cargo -->
-                <!-- <g > -->
-                  <text 
-                    v-show="forkliftAnimations['forklift-' + shipment.id]?.hasCargo"
-                    :key="'cargo-' + shipment.id + '-' + forkliftUpdateCounter"
-                    x="20" 
-                    y="5" 
-                    font-size="20" 
-                    text-anchor="middle"
-                  >📦</text>
-                <!-- </g> -->
+
+                <!-- Cargo - Reel or Box depending on cargo type -->
+                <g v-show="forkliftAnimations['forklift-' + shipment.id]?.hasCargo"
+                  :key="'cargo-' + shipment.id + '-' + forkliftUpdateCounter">
+                  <!-- Reel (cylinder) for outgoing shipments -->
+                  <g v-if="shouldShowReel('shipment', shipment)" transform="translate(12, -8)">
+                    <!-- Bottom ellipse -->
+                    <ellipse cx="10" cy="6" rx="5" ry="2" fill="#f3dab0" stroke="#000" stroke-width="1" />
+                    <!-- Cylinder body -->
+                    <rect x="5" y="-10" width="10" height="16" fill="#f3dab0" stroke="none" />
+                    <line x1="5" y1="-10" x2="5" y2="6" stroke="#000" stroke-width="1" />
+                    <line x1="15" y1="-10" x2="15" y2="6" stroke="#000" stroke-width="1" />
+                    <!-- Top ellipse -->
+                    <ellipse cx="10" cy="-10" rx="5" ry="2" fill="#f3dab0" stroke="#000" stroke-width="1" />
+                    <line x1="5" y1="8" x2="20" y2="8" stroke="#000" stroke-width="3" />
+                  </g>
+                  <!-- Box (cube) for incoming shipments -->
+                  <text v-else x="20" y="5" font-size="20" text-anchor="middle">📦</text>
+                </g>
                 
                 <!-- Blinking WORKING indicator -->
                 <circle cx="-15" cy="-18" r="6" fill="#ff5722" class="blink-animation" stroke="#fff" stroke-width="2" />
@@ -3431,6 +3853,36 @@ export default {
             {{ totalInventory }}
           </text>
         </g>
+
+        <!-- Custom Tooltip -->
+        <g v-if="tooltip.visible" 
+          class="custom-tooltip"
+          :transform="`translate(${tooltip.x}, ${tooltip.y})`">
+          <!-- Tooltip background -->
+          <rect 
+            :x="-(tooltip.content.length * 4.5 + 16) / 2" 
+            y="-18" 
+            :width="tooltip.content.length * 4.5 + 16"             
+            height="22" 
+            rx="4" 
+            ry="4"
+            fill="#333"
+            fill-opacity="0.9"
+            stroke="#555"
+            stroke-width="1"
+          />
+          <!-- Tooltip arrow -->
+          <polygon points="-5,4 5,4 0,10" fill="#333" />
+          <!-- Tooltip text -->
+          <text 
+            x="0" 
+            y="-3" 
+            font-size="9" 
+            fill="#fff"
+            font-family="Tahoma, Arial, sans-serif"
+            text-anchor="middle"
+          >{{ tooltip.content }}</text>
+        </g>      
       </svg>
     </div>
 
@@ -4705,5 +5157,15 @@ export default {
   color: #2E7D32;
 }
 
+/* Custom Tooltip Styles */
+.custom-tooltip {
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.custom-tooltip text {
+  font-weight: 500;
+  text-shadow: none;
+}
 </style>
 

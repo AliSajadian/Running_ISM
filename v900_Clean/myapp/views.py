@@ -1794,6 +1794,22 @@ def unload(request):
                     )
 
 
+                # Broadcast movement via WebSocket
+                try:
+                    channel_layer = get_channel_layer()
+                    if channel_layer is not None: 
+                        async_to_sync(channel_layer.group_send)(
+                            'inventory_updates',
+                            {
+                                'type': 'loading_unloading_message',
+                                'warehouse_name': unloading_location,
+                            }
+                        )
+                        from myapp.consumers import add_updated_warehouse_to_queue
+                        add_updated_warehouse_to_queue(unloading_location)
+                except Exception as e:
+                    print(f"WebSocket broadcast error: {e}")
+
                 # Return a success response
                 return JsonResponse({'status': 'success','message': f' {quantity_to_unload}واحد به {license_number} اضافه شد.'})
 
@@ -1956,6 +1972,22 @@ def loaded(request):
                     width=width,
                     logs=shipment[0].logs + log_generator(forklift_driver, 'Loaded'),
                 )
+
+                # Broadcast movement via WebSocket
+                try:
+                    channel_layer = get_channel_layer()
+                    if channel_layer is not None: 
+                        async_to_sync(channel_layer.group_send)(
+                            'inventory_updates',
+                            {
+                                'type': 'loading_unloading_message',
+                                'warehouse_name': loading_location,
+                            }
+                        )
+                        from myapp.consumers import add_updated_warehouse_to_queue
+                        add_updated_warehouse_to_queue(loading_location)
+                except Exception as e:
+                    print(f"WebSocket broadcast error: {e}")
 
                 # Return a success response
                 return JsonResponse({'status': 'success',
@@ -4921,8 +4953,9 @@ def get_factory_map_data(request):
 def get_warehouse_inventory(request):
     """
     Optimized version with select_related for better performance.
-    - Products: weight from (gsm * length * profile_name) / 1000
+    - Products: weight from (gsm * length * width) / 100000000 (result in tons)
     - Raw Materials: weight from shipment.net_weight
+    - Products are grouped by width for cylinder visualization
     """
     try:
         if request.method != 'GET':
@@ -4949,16 +4982,47 @@ def get_warehouse_inventory(request):
             raw_materials = in_stock.filter(
                 Q(supplier_name__isnull=False) & ~Q(supplier_name=''),
                 Q(reel_number__isnull=True) | Q(reel_number='')
+            ).exclude(
+                Q(material_type__icontains='آخال')
+            )
+
+            # Akhals: Items with آخال in material_type
+            akhals = in_stock.filter(
+                Q(material_type__icontains='آخال')
             )
             
-            products_weight = sum(
-                ((item.gsm or 0) * (item.length or 0) * (item.width or 0)) / 100000000.0
-                for item in products
-            )
+            # Group products by width
+            products_by_width = {}
+            for item in products:
+                width = item.width or 0
+                if width not in products_by_width:
+                    products_by_width[width] = {
+                        'width': width,
+                        'count': 0,
+                        'weight': 0.0
+                    }
+                products_by_width[width]['count'] += 1
+                # Weight formula: (gsm * length * width) / 100000000 (result in tons)
+                item_weight = ((item.gsm or 0) * (item.length or 0) * (item.width or 0)) / 100000000.0
+                products_by_width[width]['weight'] += item_weight
+            
+            # Round weights and convert to sorted list
+            products_list = []
+            for width_data in products_by_width.values():
+                width_data['weight'] = round(width_data['weight'], 2)
+                products_list.append(width_data)
+            
+            # Sort by width (ascending)
+            products_list.sort(key=lambda x: x['width'])
+            
+            # Calculate total products weight
+            products_weight = sum(p['weight'] for p in products_list)
             
             # Calculate RAW MATERIALS weight: from shipment.net_weight
             raw_materials_weight = 0.0
+            raw_materials_count = 0            
             for item in raw_materials:
+                raw_materials_count += 1
                 if item.shipment_id and item.shipment_id.net_weight:
                     try:
                         net_weight = float(str(item.shipment_id.net_weight).strip()) / 1000.0
@@ -4966,18 +5030,52 @@ def get_warehouse_inventory(request):
                     except (ValueError, AttributeError, TypeError):
                         pass
             
+            # Group Akhals by kind (last word of material_type)
+            akhals_by_kind = {}
+            for item in akhals:
+                # Extract kind: last word of material_type
+                material_type = item.material_type or ''
+                words = material_type.strip().split()
+                kind = words[-1] if words else 'نامشخص'
+                
+                if kind not in akhals_by_kind:
+                    akhals_by_kind[kind] = {
+                        'kind': kind,
+                        'count': 0,
+                        'weight': 0.0
+                    }
+                akhals_by_kind[kind]['count'] += 1
+                
+                # Weight from shipment.net_weight
+                if item.shipment_id and item.shipment_id.net_weight:
+                    try:
+                        net_weight = float(str(item.shipment_id.net_weight).strip()) / 1000.0
+                        akhals_by_kind[kind]['weight'] += net_weight
+                    except (ValueError, AttributeError, TypeError):
+                        pass
+            
+            # Round weights and convert to sorted list
+            akhals_list = []
+            for akhal_data in akhals_by_kind.values():
+                akhal_data['weight'] = round(akhal_data['weight'], 2)
+                akhals_list.append(akhal_data)
+
+            # Sort by kind (alphabetically)
+            akhals_list.sort(key=lambda x: x['kind'])
+            
+            # Calculate total akhals weight
+            akhals_weight = sum(a['weight'] for a in akhals_list)
+
             # Store data
             inventory_data[warehouse_name] = {
                 'total_count': in_stock.count(),
-                'products': {
-                    'count': products.count(),
-                    'weight': round(products_weight, 2),
-                },
+                'total_weight': round(products_weight + raw_materials_weight + akhals_weight, 2),
+                'products': products_list,  # Array of {width, count, weight}
                 'raw_materials': {
-                    'count': raw_materials.count(),
+                    'count': raw_materials_count,
                     'weight': round(raw_materials_weight, 2),
                 },
-                'total_weight': round(products_weight + raw_materials_weight, 2)
+                'akhals': akhals_list,  # Array of {kind, count, weight}
             }
 
         return JsonResponse({'status': 'success', 'data': inventory_data}, status=200)

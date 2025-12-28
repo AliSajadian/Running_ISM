@@ -25,7 +25,7 @@ class AlertConsumer(AsyncWebsocketConsumer):
 # In-memory storage for recent movements (shared across connections)
 # Using a simple list - list operations in Python are thread-safe for our use case
 recent_movements = []
-
+recent_updated_warehouses = []
 
 class MovementConsumer(AsyncWebsocketConsumer):
     """
@@ -90,3 +90,12 @@ def add_movement_to_queue(from_anbar, to_anbar, quantity, material_type):
         'material_type': material_type,
         'timestamp': datetime.now()
     })
+
+def add_updated_warehouse_to_queue(warehouse_name):
+    """Helper function to add loading to the in-memory queue (sync version)"""
+    global recent_updated_warehouses
+    recent_updated_warehouses.append({
+        'warehouse_name': warehouse_name,
+        'timestamp': datetime.now()
+    })
+ 
