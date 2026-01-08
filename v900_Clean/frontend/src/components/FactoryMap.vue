@@ -10,6 +10,9 @@ export default {
       activeShipments: [],
       warehouseInventory: {},
       warehouseInventoryDetails: {}, // Detailed inventory with count and weight
+      pm2Count: 0,
+      pm3Count: 0,
+      pm4Count: 0,
       pollingInterval: null,
       lastUpdateTime: null,
       // Location coordinates mapping (matching SVG positions)
@@ -22,12 +25,12 @@ export default {
         'Anbar_Salon_Tolid': { x: 140, y: 237 },
         'Anbar_Parvandeh': { x: 335, y: 94 },
         'Anbar_Koochak': { x: 335, y: 170 },
-        'Anbar_Mohavate_Homayoun': { x: 550, y: 150 },
+        'Anbar_Muhavateh_Homayoun': { x: 550, y: 150 },
         'Anbar_Khamir_Ghadim': { x: 805, y: 150 },
         'Anbar_Sangin': { x: 660, y: 560 },
         'QC': { x: 845, y: 580 },
         'Loading_Unloading': { x: 510, y: 610 },
-        'Anbar_Mohavate_Kardan': { x: 1090, y: 140 },
+        'Anbar_Muhvateh_Kardan': { x: 1090, y: 140 },
         'Anbar_Khamir_Kordan': { x: 1090, y: 180 },
         'Weight_Station_2': { x: 1170, y: 370 },
         'Office': { x: 1070, y: 650 },
@@ -35,38 +38,51 @@ export default {
         'Anbar_PAK': { x: 1410, y: 620 },
       },
       truckStopPositions: {
-        'Entrance1': { x: 390, y: 760 },  // Left entrance - moved under W1
+        'Entrance1': { x: 350, y: 750 },  // Left entrance - moved under W1
         'Weight_Station_1': { x: 350, y: 540 },
         'Anbar_Salon_Tolid': { x: 350, y: 300 },
         'Anbar_Akhal': { x: 160, y: 825 },
         'Anbar_PAK': { x: 1410, y: 820 },
         'Anbar_Khamir_Kordan': { x: 1090, y: 180 },
-        'Anbar_Mohavate_Kardan': { x: 1090, y: 140 },
+        'Anbar_Muhvateh_Kardan': { x: 1090, y: 85 },
         'Anbar_Khamir_Ghadim': { x: 805, y: 150 },
-        'Anbar_Mohavate_Homayoun': { x: 550, y: 150 },
+        'Anbar_Muhavateh_Homayoun': { x: 550, y: 150 },
         'Anbar_Parvandeh': { x: 355, y: 94 },
         'Anbar_Koochak': { x: 355, y: 170 },
-        'Anbar_Sangin': { x: 640, y: 500 },
+        'Anbar_Sangin': { x: 640, y: 510 },
         'Loading_Unloading': { x: 390, y: 540 },
-        'Weight_Station_2': { x: 1145, y: 340 },
+        'Weight_Station_2': { x: 1145, y: 400 },
         'Office': { x: 1070, y: 650 },
         'Entrance2': { x: 1070, y: 760 },  
       },
       // Warehouse badge positions
       warehouseBadgePositions: {
-        'Anbar_PAK': { x: 1410, y: 460 },
+        'Anbar_PAK': { x: 1420, y: 460 },
         'Anbar_Sangin': { x: 845, y: 405 },
-        'Anbar_Khamir_Kordan': { x: 1320, y: 75 },
-        'Anbar_Mohavate_Kardan': { x: 980, y: 15 },
+        'Anbar_Khamir_Kordan': { x: 1330, y: 75 },
+        'Anbar_Muhvateh_Kardan': { x: 980, y: 15 },
         'Anbar_Khamir_Ghadim': { x: 860, y: 15 },
-        'Anbar_Mohavate_Homayoun': { x: 500, y: 85 },
+        'Anbar_Muhavateh_Homayoun': { x: 520, y: 75 },
         'Anbar_Parvandeh': { x: 360, y: 75 },
         'Anbar_Koochak': { x: 360, y: 125 },
         'Anbar_Salon_Tolid': { x: 130, y: 15 },
-        'Anbar_Akhal': { x: 300, y: 860 },
+        'Anbar_Akhal': { x: 310, y: 860 },
       },
+
+      MAX_TRUCKS_INSIDE: 2,  // Maximum trucks allowed inside factory
+      entranceQueue: [],      // Queue of truck IDs waiting at entrance
+      entranceQueuePositions: [
+        { x: 250, y: 820 },   // 1st waiting truck (closest to entrance)
+        { x: 170, y: 820 },   // 2nd waiting truck
+        { x: 90, y: 820 },    // 3rd waiting truck
+        { x: 10, y: 820 },    // 4th waiting truck (further back)
+        // Add more if needed
+      ],
+
       truckAnimations: {}, // Store animated positions { truckId: { currentX, currentY, rotation, animating } }
       animationFrames: {},  // Store RAF IDs for cleanup
+      truckQueue: {},       // Queue for trucks waiting at each location
+      shipmentWeightStation: {}, // Track which weight station each shipment uses
       
       // Forklift animation state
       forkliftAnimations: {}, // { shipmentId: { currentX, currentY, hasCargo, phase, animating } }
@@ -77,26 +93,26 @@ export default {
       forkliftWarehousePositions: {
         'Anbar_Salon_Tolid': { x: 140, y: 300 },
         'Anbar_Sangin': { x: 760, y: 460 },
-        'Anbar_Koochak': { x: 400, y: 180 },
-        'Anbar_Parvandeh': { x: 400, y: 100 },
+        'Anbar_Koochak': { x: 390, y: 190 },
+        'Anbar_Parvandeh': { x: 320, y: 107 },
         'Anbar_Khamir_Ghadim': { x: 720, y: 100 },
-        'Anbar_Mohavath_Homayoun': { x: 520, y: 180 },
+        'Anbar_Muhavateh_Homayoun': { x: 530, y: 105 },
         'Anbar_Khamir_Kordan': { x: 1220, y: 180 },
-        'Anbar_Muhvateh_Kardan': { x: 980, y: 105 },
-        'Anbar_PAK': { x: 1380, y: 750 },
-        'Anbar_Akhal': { x: 200, y: 870 },
+        'Anbar_Muhvateh_Kardan': { x: 980, y: 85 },
+        'Anbar_PAK': { x: 1445, y: 500 },
+        'Anbar_Akhal': { x: 125, y: 890 },
       },
       forkliftTruckPositions: {
         'Anbar_Salon_Tolid': { x: 320, y: 300 },
         'Anbar_Sangin': { x: 640, y: 460 },
-        'Anbar_Koochak': { x: 400, y: 180 },
-        'Anbar_Parvandeh': { x: 400, y: 100 },
+        'Anbar_Koochak': { x: 500, y: 190 },
+        'Anbar_Parvandeh': { x: 485, y: 107 },
         'Anbar_Khamir_Ghadim': { x: 620, y: 100 },
-        'Anbar_Mohavath_Homayoun': { x: 520, y: 180 },
-        'Anbar_Muhvateh_Kardan': { x: 1070, y: 105 },
+        'Anbar_Muhavateh_Homayoun': { x: 620, y: 105 },
+        'Anbar_Muhvateh_Kardan': { x: 1070, y: 85 },
         'Anbar_Khamir_Kordan': { x: 1120, y: 180 },
-        'Anbar_PAK': { x: 1380, y: 750 },
-        'Anbar_Akhal': { x: 200, y: 870 },
+        'Anbar_PAK': { x: 1445, y: 650 },
+        'Anbar_Akhal': { x: 225, y: 890 },
       },
 
       // Dialog state
@@ -148,7 +164,7 @@ export default {
         },
         'Anbar_Khamir_Ghadim': {
           startX: 740,
-          startY: 50,
+          startY: 70,
           spacingX: 25,
           spacingY: 55,
           cylindersPerRow: 6,
@@ -161,7 +177,7 @@ export default {
       // Add after cylinderConfig in data()
       akhalPackConfig: {
         'Anbar_Akhal': {
-          startX: 125,
+          startX: 100,
           startY: 890,
           spacingX: 40,
           spacingY: 0,  // Single row
@@ -176,35 +192,35 @@ export default {
           packsPerRow: 3,
           maxRows: 2
         },
-        'Anbar_Mohavate_Kardan': {
+        'Anbar_Muhvateh_Kardan': {
           startX: 975,
           startY: 10,
           spacingX: 0,
           spacingY: 40,
-          packsPerRow: 1,
-          maxRows: 3
+          packsPerRow: 6,
+          maxRows: 1
         },
         'Anbar_Khamir_Ghadim': {
-          startX: 585,
+          startX: 625,
           startY: 15,
           spacingX: 40,
           spacingY: 0,
           packsPerRow: 3,
           maxRows: 1
         },
-        'Anbar_Mohavate_Homayoun': {
-          startX: 450,
-          startY: 95,
+        'Anbar_Muhavateh_Homayoun': {
+          startX: 515,
+          startY: 70,
           spacingX: 40,
           spacingY: 0,
           packsPerRow: 2,
           maxRows: 2
         },
         'Anbar_PAK': {
-          startX: 1387,
-          startY: 475,
+          startX: 1395,
+          startY: 460,
           spacingX: 0,
-          spacingY: 45,
+          spacingY: 40,
           packsPerRow: 1,
           maxRows: 5
         }
@@ -279,11 +295,40 @@ export default {
       });
       return states;
     },
+
+    /**
+     * Get Truck No. inside factory
+     */
+    trucksInsideFactory() {
+      // Count trucks that are inside factory (not Delivered and not in entrance queue)
+      return this.activeShipments.filter(s => {
+        // Delivered trucks have exited
+        if (s.status === 'Delivered') return false;
+        // Trucks in entrance queue are not "inside"
+        if (this.entranceQueue.includes(s.id)) return false;
+        return true;
+      }).length;
+    },
+
+    /**
+     * determine if a truck can enter the factory
+     */    
+    canTruckEnter() {
+      return this.trucksInsideFactory < this.MAX_TRUCKS_INSIDE;
+    },
   },
   mounted() {
     this.fetchMapData()
     this.startPolling()
     // this.initTruckAudio()
+
+    // Initialize shipmentWeightStation from localStorage
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('truckStation_')) {
+        const id = parseInt(key.replace('truckStation_', ''));
+        this.shipmentWeightStation[id] = localStorage.getItem(key);
+      }
+    });
 
     // Connect to movement WebSocket
     this.connectMovementWebSocket()
@@ -465,9 +510,16 @@ export default {
         const response = await axios.get('/myapp/api/getWarehouseInventory')
         
         if (response.data.status === 'success') {
-          // Store detailed data
-          this.warehouseInventoryDetails = response.data.data
+          const { inventory_data, pm2_count, pm3_count, pm4_count } = response.data.data
           
+          // Store detailed data
+          this.warehouseInventoryDetails = inventory_data
+          
+          // Store PM counts
+          this.pm2Count = pm2_count || 0
+          this.pm3Count = pm3_count || 0
+          this.pm4Count = pm4_count || 0
+
           // Create simple count map for backward compatibility
           const simpleCounts = {}
           Object.entries(response.data.data).forEach(([warehouse, data]) => {
@@ -528,10 +580,10 @@ export default {
             return this.truckStopPositions['Entrance2'] || { x: 1080, y: 800 }
           }
           else {
-            return this.truckStopPositions['Entrance1'] || { x: 390, y: 800 }
+            return this.truckStopPositions['Entrance1'] || { x: 350, y: 800 }
           }
         } else {
-          return this.truckStopPositions['Entrance1'] || { x: 390, y: 800 }
+          return this.truckStopPositions['Entrance1'] || { x: 350, y: 800 }
         }
       }
       
@@ -539,12 +591,12 @@ export default {
       if (status === 'LoadingUnloading') {
         if (type === 'Incoming') {
           if(material_type && material_type.indexOf('آخال') !== -1) {
-            return this.truckStopPositions['Weight_Station_2'] || { x: 1170, y: 370 }
+            return this.truckStopPositions['Weight_Station_2'] || { x: 1145, y: 370 }
           } else {
-            return this.truckStopPositions['Weight_Station_1'] || { x: 390, y: 540 }
+            return this.truckStopPositions['Weight_Station_1'] || { x: 350, y: 540 }
           }
         } else {
-            return this.truckStopPositions['Weight_Station_1'] || { x: 390, y: 540 }
+            return this.truckStopPositions['Weight_Station_1'] || { x: 350, y: 540 }
         }
       }
       
@@ -555,7 +607,7 @@ export default {
         } else if (type === 'Outgoing') {
           return this.truckStopPositions['Anbar_Salon_Tolid'] || { x: 350, y: 300 }
         }
-        return this.truckStopPositions['Weight_Station_1'] || { x: 390, y: 540 }
+        return this.truckStopPositions['Weight_Station_1'] || { x: 350, y: 540 }
       }
       
       // Office → START at Weight Station 2
@@ -565,11 +617,11 @@ export default {
             return this.truckStopPositions['Entrance2'] || { x: 1170, y: 370 }
           }
           else {
-            return this.truckStopPositions['Entrance1'] || { x: 390, y: 540 }
+            return this.truckStopPositions['Entrance1'] || { x: 350, y: 540 }
           }
         }
         else {
-          return this.truckStopPositions['Weight_Station_2'] || { x: 390, y: 540 }
+          return this.truckStopPositions['Weight_Station_2'] || { x: 350, y: 540 }
         }
       }
       
@@ -580,16 +632,16 @@ export default {
             return this.truckStopPositions['Entrance2'] || { x: 1070, y: 724 }
           }
           else {
-            return this.truckStopPositions['Entrance1'] || { x: 390, y: 724 }
+            return this.truckStopPositions['Entrance1'] || { x: 350, y: 724 }
           }
         } 
         else {
-          return this.truckStopPositions['Entrance1'] || { x: 390, y: 724 }
+          return this.truckStopPositions['Entrance1'] || { x: 350, y: 724 }
         }
       }
       
       // Default
-      return this.truckStopPositions['Entrance1'] || { x: 390, y: 775 }
+      return this.truckStopPositions['Entrance1'] || { x: 350, y: 775 }
     },
     
     /**
@@ -606,16 +658,11 @@ export default {
       
       // 1. Registered → END at Weight Station 1 (stops and waits)
       if (status === 'Registered') {
-        if(type === 'Incoming') {
-          if(material_type && material_type.indexOf('آخال') !== -1) {
-            return this.truckStopPositions['Weight_Station_2'] || { x: 1170, y: 370 }
-          }
-          else {
-            return this.truckStopPositions['Weight_Station_1'] || { x: 390, y: 560 }
-          }
-        } else {
-          return this.truckStopPositions['Weight_Station_1'] || { x: 390, y: 560 }
+        const trackedStation = this.shipmentWeightStation[shipment.id];
+        if (trackedStation === 'Weight_Station_2') {
+          return this.truckStopPositions['Weight_Station_2'] || { x: 1145, y: 340 };
         }
+        return this.truckStopPositions['Weight_Station_1'] || { x: 350, y: 540 };
       }
       
       // 2. LoadingUnloading → END at warehouse (stops for loading)
@@ -624,9 +671,13 @@ export default {
           if(material_type && material_type.indexOf('آخال') !== -1) {
             switch(unloadLocation) {
                 case 'Anbar_Khamir_Kordan':
-                  return this.truckStopPositions['Anbar_Khamir_Kordan'] || { x: 200, y: 1170 }
-                case 'Anbar_Mohavate_Kardan':
-                  return this.truckStopPositions['Anbar_Mohavate_Kardan'] || { x: 150, y: 1070 }
+                  return this.truckStopPositions['Anbar_Khamir_Kordan'] || { x: 180, y: 1220 }
+                case 'Anbar_Muhvateh_Kardan':
+                  return this.truckStopPositions['Anbar_Muhvateh_Kardan'] || { x: 970, y: 85 }
+                case 'Anbar_Muhavateh_Homayoun':
+                  return this.truckStopPositions['Anbar_Muhavateh_Homayoun'] || { x: 500, y: 125 }
+                case 'Anbar_Pak':
+                  return this.truckStopPositions['Anbar_Pak'] || { x: 1350, y: 830 }
                 case 'Anbar_Akhal':
                   return this.truckStopPositions['Anbar_Akhal'] || { x: 120, y: 830 }
                 default: 
@@ -655,22 +706,20 @@ export default {
       
       // 3. LoadedUnloaded → END at Weight Station 2 (stops and waits)
       if (status === 'LoadedUnloaded') {
-        if(material_type && material_type.indexOf('آخال') !== -1) {
-          return this.truckStopPositions['Weight_Station_2'] || { x: 1170, y: 370 }
+        const trackedStation = this.shipmentWeightStation[shipment.id];
+        if (trackedStation === 'Weight_Station_2') {
+          return this.truckStopPositions['Weight_Station_2'] || { x: 1145, y: 400 };
         }
-        else {
-          return this.truckStopPositions['Weight_Station_1'] || { x: 350, y: 560 }
-        }
+        return this.truckStopPositions['Weight_Station_1'] || { x: 350, y: 600 };
       }
       
       // 4. Office → END at Office
       if (status === 'Office') {
-        if(material_type && material_type.indexOf('آخال') !== -1) {
-          return this.truckStopPositions['Entrance2'] || { x: 1050, y: 760 }
+        const trackedStation = this.shipmentWeightStation[shipment.id];
+        if (trackedStation === 'Weight_Station_2') {
+          return this.truckStopPositions['Entrance2'] || { x: 1070, y: 750 };
         }
-        else {
-          return this.truckStopPositions['Entrance1'] || { x: 400, y: 760 }
-        }
+        return this.truckStopPositions['Entrance1'] || { x: 350, y: 750 };
       }
       
       // 5. Delivered → END at street (exits)
@@ -698,32 +747,36 @@ export default {
      * Get truck rotation based on position and status
      */
     getTruckRotation(shipment) {
-      const type = shipment.shipment_type
       const status = shipment.status
-      const location = shipment.location
-      
-      // Weight Station 1: Head pointing right (90 degrees)
+      const unload_location = shipment.unload_location
+
+      // Registered: came from entrance (below), cab points UP
       if (status === 'Registered') {
-        return 0
-      }
-
-      if (location === 'Loading_Unloading') {
-        if (type === 'Incoming') {
-          return 0
-        } else if (type === 'Outgoing') {
-          return 0
-        }
-      }
-
-      // Weight Station 2: Head pointing toward entrance (0 degrees)
-      if (status === 'LoadedUnloaded' || location === 'Weight_Station_2') {
-        return 0
+        return -90; // Head up
       }
       
-      // Horizontal for loading/unloading and other positions
-      return 0
-    },
+      // LoadedUnloaded: came from warehouse (above), cab points DOWN toward exit
+      if (status === 'LoadedUnloaded') {
+          return 90; // Head down (changed from -90)
+        }
+        
+        // LoadingUnloading: vertical if at weight station, preserve animation rotation if at warehouse
+        if (status === 'LoadingUnloading') {
+          if (!unload_location) {
+            return -90; // Still at weight station, vertical head up
+          }
+          // At warehouse - DON'T override, return null to preserve animation rotation
+          return null; // Will be handled specially
+        }
 
+        // At office/entrance: vertical, head DOWN (90)
+        if (status === 'Office') {
+          return 90; // Head down (facing street)
+        }
+
+        // Default horizontal
+        return 0
+      },
     /**
      * Get truck color based on shipment type
      */
@@ -873,11 +926,16 @@ export default {
      * Animate truck along path - CONTINUOUS smooth motion
      */
     animateTruckAlongPath(shipment, waypoints) {
-      if (!waypoints || waypoints.length < 2) return;
+      console.log(`🎬 animateTruckAlongPath called for truck ${shipment.id}`, waypoints);  
+      if (!waypoints || waypoints.length < 2) {
+        console.log(`❌ Animation aborted - waypoints invalid`);
+        return
+      };
       
       const truckId = shipment.id;
       const smoothPath = this.generateSmoothPath(waypoints);
-      
+      console.log(`📍 smoothPath length: ${smoothPath.length}, totalLength will be calculated...`);
+
       // Calculate total path length for consistent speed
       let totalLength = 0;
       const segmentLengths = [];
@@ -901,6 +959,10 @@ export default {
         const elapsed = Date.now() - startTime;
         const progress = Math.min(elapsed / totalDuration, 1);
         
+        // if (progress < 0.1) {  // Log first 10% of animation
+        //   console.log(`🚚 Truck ${truckId} progress: ${(progress * 100).toFixed(1)}% at (${currentX.toFixed(0)}, ${currentY.toFixed(0)})`);
+        // }
+
         // Easing for smooth start/stop
         const easeProgress = progress < 0.5 
           ? 2 * progress * progress 
@@ -970,14 +1032,32 @@ export default {
           flipX  // track horizontal flip        
         };
         
+        // Force Vue to detect the change (add this line):
+        this.truckAnimations = { ...this.truckAnimations };
+
         if (progress < 1) {
           this.animationFrames[truckId] = requestAnimationFrame(animate);
         } else {
           // Animation complete
           this.truckAnimations[truckId].animating = false;
 
+          // FIX: Set correct final rotation based on status
+          // But PRESERVE animation rotation for LoadingUnloading at warehouse
+          const statusRotation = this.getTruckRotation(shipment);
+          if (statusRotation !== null) {
+            this.truckAnimations[truckId].rotation = statusRotation;
+          }
+
           if (shipment.status === 'Delivered') {
             this.truckAnimations[truckId].exited = true;
+
+            // Clean up localStorage for this truck
+            localStorage.removeItem(`truckStation_${shipment.id}`);
+            
+            // Process entrance queue - let next truck enter
+            this.$nextTick(() => {
+              this.processEntranceQueue();
+            });
           }
           
           if (shipment.status === 'LoadingUnloading' && shipment.unload_location) {
@@ -989,7 +1069,23 @@ export default {
           }
           
           this.stopTruckSound(truckId);
-        }
+
+          // // Animation complete - truck arrived at destination
+          // this.truckAnimations[truckId].animating = false;
+
+          // Clear target destination and process queue
+          const arrivedDestination = this.truckAnimations[truckId].targetDestination;
+          this.truckAnimations[truckId].targetDestination = null;
+
+          // Process queue for the destination this truck just left (previous destination)
+          // This happens when status changes and truck moves to new destination
+          this.$nextTick(() => {
+            // Process all queues in case any destination is now free
+            Object.keys(this.truckQueue).forEach(dest => {
+              this.processQueue(dest);
+            });
+          });   
+        }   
       };
       
       animate();
@@ -999,302 +1095,623 @@ export default {
      * Get waypoints path based on shipment status
      */
     getWaypointsForShipment(shipment, currentPos = null) {
+      console.log(`📍 getWaypointsForShipment: id=${shipment.id}, status=${shipment.status}, type=${shipment.shipment_type}`);      
       const status = shipment.status;
       const type = shipment.shipment_type;
       const unload_location = shipment.unload_location;
-      const material_type = shipment.material_type;
 
       switch(status) {
         case 'Registered':
           if(type === 'Incoming') {
-            if(material_type && material_type.indexOf('آخال') !== -1) {
+            // Use already-assigned station, or determine new one
+            let targetStation = this.shipmentWeightStation[shipment.id];
+            if (!targetStation) {
+              targetStation = this.getAvailableWeightStation(shipment);
+              this.shipmentWeightStation[shipment.id] = targetStation;
+            }           
+
+            if(targetStation === 'Weight_Station_2') {
+              // Path to Weight Station 2 (via Entrance 2)
               return [
                 { x: 0, y: 820 },     // Street
                 { x: 1070, y: 820 },  // Entrance2
-                { x: 1070, y: 720 },  //   
-                { x: 1145, y: 500 },  //    
+                { x: 1070, y: 720 },  
+                { x: 1145, y: 500 },  
                 { x: 1145, y: 340 }   // W2   
-              ];
-            }
-            else {
+              ];              
+            } else {
+              // Path to Weight Station 1 (via Entrance 1)
               return [
                 { x: 0, y: 820 },    // Street
                 { x: 350, y: 820 },  // Entrance1
-                { x: 350, y: 510 }   // W1
+                { x: 350, y: 500 }   // W1
               ];
-            }
-          } else {
-            return [
-              { x: 0, y: 820 },    // Street
-              { x: 350, y: 820 },  // Entrance1
-              { x: 350, y: 510 }   // W1
-            ];
+            }            
+            // if(material_type && material_type.indexOf('آخال') !== -1) {
+            //   return [
+            //     { x: 0, y: 820 },     // Street
+            //     { x: 1070, y: 820 },  // Entrance2
+            //     { x: 1070, y: 720 },  //   
+            //     { x: 1145, y: 500 },  //    
+            //     { x: 1145, y: 340 }   // W2   
+            //   ];              
+            // }
+            // else { // Incoming other than Akhal
+            //   return [
+            //     { x: 0, y: 820 },    // Street
+            //     { x: 350, y: 820 },  // Entrance1
+            //     { x: 350, y: 510 }   // W1
+            //   ];
+            // }
+          } else { // Outgoing
+            let targetStation = this.shipmentWeightStation[shipment.id];
+            if (!targetStation) {
+              targetStation = this.getAvailableWeightStation(shipment);
+              this.shipmentWeightStation[shipment.id] = targetStation;
+            }            
+
+            if(targetStation === 'Weight_Station_2') {
+              return [
+                { x: 0, y: 820 },     // Street
+                { x: 1070, y: 820 },  // Entrance2
+                { x: 1070, y: 720 },  
+                { x: 1145, y: 500 },  
+                { x: 1145, y: 340 }   // W2   
+              ];
+            } else {
+              return [
+                { x: 0, y: 820 },    // Street
+                { x: 350, y: 820 },  // Entrance1
+                { x: 350, y: 500 }   // W1
+              ];
+            }            
           }
         case'LoadingUnloading':
+          console.log(`📍 LoadingUnloading case: unload_location="${unload_location}", targetStation will be checked...`);
+
+          const targetStation = this.shipmentWeightStation[shipment.id];
           if (type === 'Incoming') {
-            if(material_type && material_type.indexOf('لوله مقوایی') !== -1) {
-              return [
-                { x: 350, y: 500 },  // W1
-                { x: 350, y: 300 }   // Anbar Salon Tolid
-              ];
-            }
-            else {
               switch(unload_location) {
                 case 'Anbar_Salon_Tolid':
-                  return [
-                    { x: 350, y: 500 },  // W1
-                    { x: 350, y: 300 }   // W1
-                  ];
+                  if(targetStation === 'Weight_Station_2'){
+                    return [
+                        { x: 1150, y: 370 },  // W2
+                        { x: 1150, y: 290 },
+                        { x: 320, y: 290 },
+                        { x: 320, y: 260},  
+                        { x: 450, y: 260} 
+                      ];
+                  } else {
+                    return [
+                        { x: 350, y: 500 },  // W1
+                        { x: 320, y: 300 },   // 
+                        { x: 320, y: 260 },   // turn right towards anbar sangin
+                        { x: 450, y: 260 },   
+                      ];
+                }
                 case 'Anbar_Sangin':
+                if(targetStation === 'Weight_Station_2'){
+                  return [
+                    { x: 1150, y: 370 },   // W2
+                    { x: 1150, y: 280 },   // turn 'left' towards anbar sangin
+                    { x: 680, y: 280 },   // turn 'left' towards anbar sangin
+                    { x: 680, y: 540 },   // anbar sangin
+                    { x: 600, y: 540 },   // turn right 
+                    ];
+                } else {
                   return [
                     { x: 350, y: 500 },   // W1
                     { x: 350, y: 280 },   // turn right towards anbar sangin
-                    { x: 640, y: 280 },   // reach anbar sangin
-                    { x: 640, y: 480 },   // anbar sangin
+                    { x: 680, y: 280 },   // turn right towards anbar sangin
+                    { x: 680, y: 540 },   // anbar sangin
+                    { x: 600, y: 540 },   // turn right 
                     ];
+                }
                 case 'Anbar_Koochak':
-                  return [
-                    { x: 350, y: 500 },  // W1
-                    { x: 350, y: 260 },  // turn right towards anbar koochak
-                    { x: 360, y: 260 },  // turn left towards anbar koochak
-                    { x: 360, y: 150 },  // Anbar koochak
-                  ];
+                  if(targetStation === 'Weight_Station_2'){
+                    return [
+                      { x: 1150, y: 370 },  // W1
+                      { x: 1150, y: 290 },  // turn right towards anbar koochak
+                      { x: 650, y: 290 },  // turn left towards anbar koochak
+                      { x: 650, y: 140 },  //
+                      { x: 500, y: 140 },  // Anbar koochak
+                    ];
+                  } else {
+                    return [
+                      { x: 350, y: 500 },  // W1
+                      { x: 350, y: 300 },  // turn right towards anbar koochak
+                      { x: 500, y: 300 },  // turn left towards anbar koochak
+                      { x: 500, y: 150 },  //
+                      { x: 600, y: 150 },  // Anbar koochak
+                    ];
+                }
                 case'Anbar_Parvandeh':
+                  if(targetStation === 'Weight_Station_2'){
+                    return [
+                      { x: 1150, y: 370 },  // W2
+                      { x: 1150, y: 300 },  // turn right towards anbar Parvandeh
+                      { x: 500, y: 300 },  // turn left towards anbar Parvandeh
+                      { x: 500, y: 140 },  //    
+                      { x: 600, y: 140 },  // Anbar Parvandeh
+                    ];
+                  } else {
+                    return [
+                      { x: 350, y: 500 },  // W1
+                      { x: 350, y: 300 },  // turn right towards anbar Parvandeh
+                      { x: 500, y: 300 },  // turn left towards anbar Parvandeh
+                      { x: 500, y: 140 },  //    
+                      { x: 600, y: 140 },  // Anbar Parvandeh
+                    ];
+                }
+                case 'Anbar_Muhavateh_Homayoun':
+                if(targetStation === 'Weight_Station_1'){
                   return [
-                    { x: 350, y: 500 },  // W1
-                    { x: 350, y: 260 },  // turn right towards anbar Parvandeh
-                    { x: 360, y: 260 },  // turn left towards anbar Parvandeh
-                    { x: 360, y: 120 },  // Anbar Parvandeh            
+                    { x: 350, y: 500 },  // W2
+                    { x: 350, y: 290 },  // turn left
+                    { x: 650, y: 290 },  // turn right
+                    { x: 650, y: 140 },  // turn left    
+                    { x: 500, y: 140 },  // Anbar Mohavath_Homayoun                      
                   ];
-                case 'Anbar_Mohavath_Homayoun':
+                } else {
                   return [
-                    { x: 350, y: 500 },  // W1
-                    { x: 350, y: 260 },  // turn right towards anbar Mohavath_Homayoun
-                    { x: 460, y: 260 },  // turn left towards anbar Mohavath_Homayoun
-                    { x: 460, y: 200 },  // Anbar Mohavath_Homayoun            
-                  ];
+                    { x: 1150, y: 370 },  // W1 
+                    { x: 1150, y: 260 },  // turn left
+                    { x: 650, y: 260 },  // turn right
+                    { x: 650, y: 140 },  // turn left    
+                    { x: 500, y: 140 },  // Anbar Mohavath_Homayoun   
+                  ];                
+                }
                 case 'Anbar_Khamir_Ghadim':
+                if(targetStation === 'Weight_Station_2'){
+                  return [
+                    { x: 1150, y: 370 },  // W1
+                    { x: 1150, y: 260 },  // turn right towards anbar Mohavath_Homayoun
+                    { x: 600, y: 260 },  // turn left towards anbar Mohavath_Homayoun
+                    { x: 600, y: 150 },  // Anbar Mohavath_Homayoun            
+                    ];
+                } else {
                   return [
                     { x: 350, y: 500 },  // W1
                     { x: 350, y: 260 },  // turn right towards anbar Mohavath_Homayoun
                     { x: 600, y: 260 },  // turn left towards anbar Mohavath_Homayoun
                     { x: 600, y: 150 },  // Anbar Mohavath_Homayoun            
                     ];
-                case 'Anbar_Muhvateh_Kardan':
+                }
+                case 'Anbar_Muhavateh_Kardan':
+                if(targetStation === 'Weight_Station_1'){
+                  return [
+                    { x: 350, y: 500 },    // W1
+                    { x: 350, y: 290 },
+                    { x: 1150, y: 290 },
+                    { x: 1150, y: 105 },
+                    { x: 970, y: 105 },
+                  ];
+                } else {
                   return [
                     { x: 1150, y: 370 },    // W2
-                    { x: 1150, y: 140 },    // Anbar Muhvateh Kordan  
-                    { x: 970, y: 140 },
+                    { x: 1150, y: 105 },    // Anbar Muhvateh Kordan  
+                    { x: 970, y: 105 },
                   ];
+                }
                 case 'Anbar_Khamir_Kordan':
+                if(targetStation === 'Weight_Station_1'){
+                  return [
+                    { x: 350, y: 500 },    // W1
+                    { x: 350, y: 290 },    // Anbar KHamir Kordan  
+                    { x: 1150, y: 290 },    
+                    { x: 1150, y: 180 },
+                    { x: 970, y: 180 }               
+                  ];
+                } else {
                   return [
                     { x: 1145, y: 340 },    // W2
                     { x: 1145, y: 180 },    // Anbar KHamir Kordan  
                     { x: 970, y: 180 },                   
                   ];
+                }
                 case 'Anbar_PAK':
+                if(targetStation === 'Weight_Station_1'){
                   return [
                     { x: 350, y: 500 },  // W1
-                    { x: 350, y: 820 },  // towards out of factory
-                    { x: 1350, y: 820 }, // Start from current or W1
+                    { x: 350, y: 800 },  // towards out of factory
+                    { x: 1400, y: 800 }, // 
+                    { x: 1400, y: 550 }, // W1
                   ];
+                } else {
+                  return [
+                    { x: 1150, y: 370 },  // W2
+                    { x: 1070, y: 550 },  // towards out of factory
+                    { x: 1070, y: 800 }, // Start from current or W1
+                    { x: 1400, y: 800 }, // 
+                    { x: 1400, y: 550 }, // W1
+                  ];
+                }
                 case 'Anbar_Akhal':
+                if(targetStation === 'Weight_Station_1'){
                   return [
-                    { x: 350, y: 500 },  // W1
-                    { x: 350, y: 830 },  // towards out of factory
-                    { x: 120, y: 830 },  // Start from current or W1
+                    { x: 350, y: 500 },  // W2
+                    { x: 350, y: 800 },  // 
+                    { x: 320, y: 800 },  // 
+                    { x: 320, y: 920 },  //
+                    { x: 175, y: 920 },  //
                   ];
+                } else {
+                  return [
+                    { x: 1150, y: 370 },  // W2
+                    { x: 1070, y: 550 },  // 
+                    { x: 1070, y: 800 },  // 
+                    { x: 320, y: 800 },  // 
+                    { x: 320, y: 920 },  //
+                    { x: 175, y: 920 },  //
+                  ];
+                }
                 default: 
-                  if(material_type && material_type.indexOf('آخال') !== -1) {
+                  if(targetStation === 'Weight_Station_1'){
+                    return [
+                      { x: 350, y: 500 }   // W1
+                    ];
+                  } else {
                     return [
                       { x: 1145, y: 340 }   // W2          
                     ];
                   }
-                  else {
-                    return [
-                      { x: 350, y: 500 }   // W1
-                    ];
-                  }
               }
-            }
           }
           else {
             switch(unload_location) {
                 case 'Anbar_Salon_Tolid':
-                  return [
-                    { x: 350, y: 500 },
-                    { x: 320, y: 260 },
-                    { x: 450, y: 260 },
-                  ];
+                  if(targetStation === 'Weight_Station_2'){
+                    return [
+                      { x: 1150, y: 370 },
+                      { x: 1150, y: 300 },
+                      { x: 320, y: 300 },
+                      { x: 320, y: 260 },
+                      { x: 450, y: 260 },
+                    ];
+                  } else {
+                    return [
+                      { x: 350, y: 500 },
+                      { x: 320, y: 300 },
+                      { x: 320, y: 260 },
+                      { x: 450, y: 260 },
+                    ];
+                  }
                 case 'Anbar_Sangin':
-                  return [
-                    { x: 350, y: 500 },   // w1
-                    { x: 350, y: 300 },   // turn right towards anbar sangin
-                    { x: 660, y: 300 },   // reach anbar sangin
-                    { x: 660, y: 560 },   // turn right towards W1
-                  ];
+                  if(targetStation === 'Weight_Station_2'){
+                    return [
+                      { x: 1150, y: 370 },   // w2
+                      { x: 1150, y: 300 },   // turn left towards anbar sangin
+                      { x: 680, y: 300 },   // turn left towards anbar sangin
+                      { x: 680, y: 625 },   // turn right towards W1
+                      { x: 550, y: 625 },   // anbar sangin
+                    ];
+                  } else {
+                    return [
+                      { x: 350, y: 500 },   // w1
+                      { x: 350, y: 300 },   // turn right towards anbar sangin
+                      { x: 680, y: 300 },   // turn right towards anbar sangin
+                      { x: 680, y: 625 },   // turn right towards W1
+                      { x: 550, y: 625 },   // anbar sangin
+                    ];
+                  }
                 case 'Anbar_Khamir_Ghadim':
-                  return [
-                    { x: 350, y: 500 },  // W1
-                    { x: 350, y: 260 },  // turn right towards anbar Mohavath_Homayoun
-                    { x: 680, y: 260 },  // turn left towards anbar Mohavath_Homayoun
-                    { x: 680, y: 140 },  // turn left towards anbar Mohavath_Homayoun
-                    { x: 580, y: 140 },  // turn left towards anbar Mohavath_Homayoun
-                    // { x: 640, y: 230 },  // Anbar Mohavath_Homayoun            
-                  ];
+                  if(targetStation === 'Weight_Station_2'){
+                    return [
+                      { x: 1150, y: 370 },
+                      { x: 1150, y: 290 },                    
+                      { x: 680, y: 290 },  // turn left towards anbar Mohavath_Homayoun
+                      { x: 680, y: 140 },  // turn left towards anbar Mohavath_Homayoun
+                      { x: 580, y: 140 },  // turn left towards anbar Mohavath_Homayoun
+                      // { x: 640, y: 230 },  // Anbar Mohavath_Homayoun            
+                    ];
+                  } else {
+                    return [
+                      { x: 350, y: 500 },  // W1
+                      { x: 350, y: 290 },  // turn right towards anbar Mohavath_Homayoun
+                      { x: 680, y: 290 },
+                      { x: 680, y: 140 },
+                      { x: 580, y: 140 },
+                    ];
+                  }
                 default: 
-                  return [
-                    { x: 350, y: 500 },  // W1
-                  ]
+                  if(targetStation === 'Weight_Station_2'){
+                    return [
+                      { x: 1150, y: 370 },  // W2
+                    ]
+                  } else {
+                    return [
+                      { x: 350, y: 500 },  // W1
+                    ]                
+                  }
             }
           }
         case 'LoadedUnloaded':
+          // Determine which entrance to use based on which weight station was used
+          const usedStation = this.shipmentWeightStation[shipment.id];
           //const start = currentPos || this.truckStopPositions[shipment.unload_location] || { x: 510, y: 610 };
           // For incoming trucks, follow the GREEN path with proper waypoints
           if (type === 'Incoming') {
             switch(unload_location) {
               case 'Anbar_Salon_Tolid':
-                return [
-                  { x: 350, y: 300 },     // Anbar Salon Tolid
-                  { x: 350, y: 620 },    // W1
-                ];
+                if(usedStation === 'Weight_Station_1') {
+                  return [
+                    { x: 350, y: 320 },     // Anbar Salon Tolid
+                    { x: 350, y: 620 },    // W1
+                  ];
+                } else {
+                  return [
+                    { x: 350, y: 280 },     // Anbar Salon Tolid
+                    { x: 1145, y: 280 },    // 
+                    { x: 1145, y: 400 },    // W2
+                  ];
+                }
               case 'Anbar_Sangin':
-                return [
-                  { x: 660, y: 570 },     // anbar sangin
-                  { x: 660, y: 700 },    // Before turning left
-                  { x: 350, y: 700 },     // Turn right towards W1
-                  { x: 350, y: 600 }     // Turn right towards W1
-                ];
+                if(usedStation === 'Weight_Station_1') {
+                  return [
+                    { x: 660, y: 570 },     // anbar sangin
+                    { x: 660, y: 280 },    // Before turning left
+                    { x: 350, y: 280 },     // Turn left towards W1
+                    { x: 350, y: 620 }     // W1
+                  ];
+                } else {
+                  return [
+                    { x: 660, y: 570 },     // anbar sangin
+                    { x: 660, y: 280 },    // Before turning right
+                    { x: 1150, y: 280 },     // Turn right towards W2
+                    { x: 1150, y: 450 }     // W2
+                  ];
+                }
               case 'Anbar_Koochak':
-                return [
-                  { x: 360, y: 150 },     // Anbar koochak
-                  { x: 360, y: 260 },     // turn right 
-                  { x: 350, y: 260 },    // Before turning left
-                  { x: 350, y: 580 }     // Turn left towards W1
-                ];
+                if(usedStation === 'Weight_Station_1') {
+                  return [
+                    { x: 600, y: 240 },     // Anbar koochak
+                    { x: 600, y: 300 },     // turn right 
+                    { x: 350, y: 300 },    // Before turning left
+                    { x: 350, y: 620 }     // Turn left towards W1
+                  ];
+                } else {
+                  return [
+                    { x: 600, y: 240 },     // Anbar koochak
+                    { x: 600, y: 300 },     // turn right 
+                    { x: 1150, y: 300 },     // Turn right towards W2
+                    { x: 1150, y: 450 }     // W2
+                  ];
+                }
               case'Anbar_Parvandeh':
-                return [
-                  { x: 360, y: 120 },     // Anbar Parvandeh            
-                  { x: 360, y: 260 },     // turn right 
-                  { x: 350, y: 260 },    // Before turning left
-                  { x: 350, y: 580 }     // Turn left towards W1
-                ];
-              case 'Anbar_Mohavath_Homayoun':
-                return [
-                  { x: 460, y: 200 },  // Anbar Mohavath_Homayoun            
-                  { x: 460, y: 260 },  // turn right
-                  { x: 350, y: 260 },    // Before turning left
-                  { x: 350, y: 580 }     // Turn left towards W1
-                ];
+                if(usedStation === 'Weight_Station_1') {
+                  return [
+                    { x: 600, y: 240 },    // Anbar Parvandeh            
+                    { x: 600, y: 300 },    // turn right 
+                    { x: 350, y: 300 },    // Before turning left
+                    { x: 350, y: 620 }     // Turn left towards W1
+                  ];
+                } else {
+                  return [
+                    { x: 600, y: 240 },     // Anbar Parvandeh
+                    { x: 600, y: 300 },     // turn right 
+                    { x: 1150, y: 300 },    // Turn right towards W2
+                    { x: 1150, y: 450 }     // W2
+                  ];
+                }
+              case 'Anbar_Muhavateh_Homayoun':
+                if(usedStation === 'Weight_Station_1') {
+                  return [
+                    { x: 500, y: 210 },  // Anbar Mohavath_Homayoun            
+                    { x: 500, y: 280 },  // turn right
+                    { x: 1150, y: 280 },    // Before turning left
+                    { x: 1150, y: 450 }     // Turn left towards W1
+                  ];
+                } else {
+                  return [
+                    { x: 500, y: 210 },  // Anbar Mohavath_Homayoun            
+                    { x: 500, y: 280 },  // turn right
+                    { x: 350, y: 280 },    // Before turning left
+                    { x: 350, y: 620 }     // Turn left towards W1
+                  ];
+                }
               case 'Anbar_Khamir_Ghadim':
-                return [
-                  { x: 600, y: 150 },  // Anbar Mohavath_Homayoun            
-                  { x: 600, y: 260 },  // turn right 
-                  { x: 350, y: 260 },    // Before turning left
-                  { x: 350, y: 580 }     // Turn left towards W1
-                ];
+                if(usedStation === 'Weight_Station_1') {
+                  return [
+                    { x: 600, y: 150 },  // Anbar Mohavath_Homayoun            
+                    { x: 600, y: 260 },  // turn right 
+                    { x: 350, y: 260 },    // Before turning left
+                    { x: 350, y: 620 }     // Turn left towards W1
+                  ];
+                } else {
+                  return [
+                    { x: 600, y: 150 },  // Anbar Mohavath_Homayoun            
+                    { x: 600, y: 260 },  // turn right 
+                    { x: 1150, y: 260 },    // Before turning left
+                    { x: 1150, y: 450 }     // Turn left towards W1
+                  ];
+                }
               case 'Anbar_Muhvateh_Kardan':
-                return [
-                  { x: 1090, y: 140 },  // move backward to Anbar_Khamir_Kordan     
-                  { x: 1150, y: 180 },    // Before turning right
-                  { x: 1150, y: 350 }     // Turn right towards W2
-                ];
+                if(usedStation === 'Weight_Station_1') {
+                  return [
+                    { x: 1090, y: 140 },  // move backward to Anbar_Khamir_Kordan     
+                    { x: 1150, y: 180 },    // Before turning right
+                    { x: 1150, y: 450 }     // Turn right towards W2
+                  ];
+                } else {
+                  return [
+                    { x: 1090, y: 140 },  // Anbar_Muhvateh_Kardan     
+                    { x: 1090, y: 280 },    // Before turning right
+                    { x: 350, y: 280 },     // Turn right towards W2
+                    { x: 350, y: 620 }     // W1
+                  ];
+                }
               case 'Anbar_Khamir_Kordan':
-                return [
-                  // { x: 1050, y: 180 }, 
-                  { x: 1145, y: 180 },  //  Anbar_Khamir_Kordan     
-                  { x: 1145, y: 440 }     //  W2
-                ];
+                if(usedStation === 'Weight_Station_1') {
+                  return [
+                    // { x: 1050, y: 180 }, 
+                    { x: 1150, y: 180 },  //  Anbar_Khamir_Kordan     
+                    { x: 1150, y: 450 }     // W2
+                  ];
+                } else {
+                  return [
+                    { x: 1150, y: 180 },  //  Anbar_Khamir_Kordan     
+                    { x: 1150, y: 280 },     // turn right
+                    { x: 350, y: 280 },     // Turn left towards W1
+                    { x: 350, y: 620 }     // W1
+                  ];
+                }
               case 'Anbar_PAK':
-                return [
-                  { x: 1320, y: 820 },   // towards out of factory
-                  { x: 1020, y: 820 },   // turn right
-                  { x: 1145, y: 370 }     //  W2
+                if(usedStation === 'Weight_Station_1') {
+                  return [
+                  { x: 1420, y: 700 },   //
+                  { x: 1420, y: 800 },   // towards out of factory
+                  { x: 1070, y: 800 },   // turn right
+                  { x: 1070, y: 720 },   // 
+                  { x: 1150, y: 450 },   // 
+                  { x: 1150, y: 340 }    // W2
                 ];
+                } else {
+                  return [
+                    { x: 1420, y: 700 },   //
+                    { x: 1420, y: 800 },   // turn right
+                    { x: 350, y: 800 },   // turn right
+                    { x: 350, y: 620 },   // W1
+                  ];
+                }
               case 'Anbar_Akhal':
-                return [
-                  { x: 120, y: 830 },  // Start from current or W1
-                  { x: 1020, y: 820 },   // turn right
-                  { x: 1080, y: 370 }     //  W2
-
-                ];
+                if(usedStation === 'Weight_Station_1') {
+                  return [
+                    { x: 330, y: 905 },   //
+                    { x: 330, y: 800 },  // 
+                    { x: 1070, y: 800 },  // turn right
+                    { x: 1070, y: 720 },  // 
+                    { x: 1150, y: 550 },  // 
+                    { x: 1150, y: 370 },  // W2
+                  ];
+                } else {
+                  return [
+                    { x: 330, y: 905 },   //
+                    { x: 350, y: 540 },   // W1
+                  ];
+                }
               default: 
                 return [
                   { x: 1170, y: 370 },  // W2
                 ]
             }
           }
-          else {
+          else { //Outgoing
             switch(unload_location) {
               case 'Anbar_Salon_Tolid':
-                return [
-                  { x: 350, y: 260 },   // Anbar Salon Tolid
-                  { x: 350, y: 620 },  // W1
-                ];               
+                if(usedStation === 'Weight_Station_2') {
+                  return [
+                    { x: 350, y: 290 },   // Anbar Salon Tolid
+                    { x: 1150, y: 290 },  // 
+                    { x: 1150, y: 400 }
+                  ];   
+                } else {
+                  return [
+                    { x: 350, y: 320 },   // Anbar Salon Tolid
+                    { x: 350, y: 620 },  // W1
+                  ];   
+                }
               case 'Anbar_Sangin':
+              if(usedStation === 'Weight_Station_2') {
+                return [
+                  { x: 660, y: 560 },   // anbar sangin
+                  { x: 660, y: 290 },   // turn right 
+                  { x: 1150, y: 290 },   // turn right towards W2
+                  { x: 1150, y: 370 },   // W2
+                ];
+              } else {
                 return [
                   { x: 660, y: 560 },   // anbar sangin
                   { x: 660, y: 300 },   // turn left 
                   { x: 350, y: 300 },   // turn left towards W1
                   { x: 350, y: 620 },   // W1
                 ];
+              }
               case 'Anbar_Khamir_Ghadim':
+              if(usedStation === 'Weight_Station_2') {
+                return [
+                  { x: 600, y: 140 },  // Anbar Mohavath Kordan            
+                  { x: 600, y: 260 },  // turn left towards anbar salon tolid
+                  { x: 1150, y: 260 },  // turn right towards W2
+                  { x: 1150, y: 370 },  // W2
+                ];
+              } else {
                 return [
                   { x: 600, y: 140 },  // Anbar Mohavath Kordan            
                   { x: 600, y: 260 },  // turn right towards anbar salon tolid
                   { x: 350, y: 260 },  // turn left towards W1
                   { x: 350, y: 620 },  // W1
-                ];
+                ];              
+              }
               default: 
+              if(usedStation === 'Weight_Station_2') {
+                return [
+                  { x: 1150, y: 400 },  // W1
+                ]
+              } else {
                 return [
                   { x: 350, y: 620 },  // W1
                 ]
+              }
             }
           }
         case 'Office':
-          if (type === 'Incoming') {
-            if(material_type && material_type.indexOf('آخال') !== -1) {
-              return [
-                { x: 1140, y: 410 },
-                { x: 1070, y: 550 },
-                { x: 1070, y: 720 },
-              ];
-            } else {
-              return [
-                currentPos || { x: 350, y: 540 },
-                { x: 350, y: 600 },
-                { x: 350, y: 720 },
-              ];            
-            }        
-          } else {
+          // Determine which entrance to use based on which weight station was used
+          const usedStation2 = this.shipmentWeightStation[shipment.id];
+          
+          if (usedStation2 === 'Weight_Station_2') {
+            // Go to right entrance (Entrance 2)
             return [
-                currentPos || { x: 350, y: 540 },
-                { x: 350, y: 600 },
-                { x: 350, y: 720 },
-              ];            
+              { x: 1150, y: 370 },   // From W2
+              { x: 1070, y: 550 },
+              { x: 1070, y: 750 },   // Right entrance
+            ];
+          } else {
+            // Go to left entrance (Entrance 1)
+            return [
+              currentPos || { x: 350, y: 540 },
+              { x: 350, y: 600 },
+              { x: 350, y: 750 },   // Left entrance
+            ];            
           }
+
+          // if (type === 'Incoming') {
+          //   if(material_type && material_type.indexOf('آخال') !== -1) {
+          //     return [
+          //       { x: 1150, y: 370 },
+          //       { x: 1070, y: 550 },
+          //       { x: 1070, y: 750 },
+          //     ];
+          //   } else {
+          //     return [
+          //       currentPos || { x: 350, y: 540 },
+          //       { x: 350, y: 600 },
+          //       { x: 350, y: 750 },
+          //     ];            
+          //   }        
+          // } else {
+          //   return [
+          //       currentPos || { x: 350, y: 540 },
+          //       { x: 350, y: 600 },
+          //       { x: 350, y: 750 },
+          //     ];            
+          // }
         case 'Delivered':
-          if (type === 'Incoming') {
-            if(material_type && material_type.indexOf('آخال') !== -1) {
-              return [
-                currentPos || { x: 1070, y: 720 },
-                { x: 1070, y: 800 },   // Street
-                { x: 0, y: 800 }   // Street
-              ];
-            } else {
-              return [
-                currentPos || { x: 350, y: 720 },
-                { x: 350, y: 800 },   // Street
-                { x: 0, y: 800 }   // Street
-              ];            
-            }        
-          } else {
+          const exitStation = this.shipmentWeightStation[shipment.id];
+          if (exitStation === 'Weight_Station_2') {
+            // Exit via right entrance (Entrance 2)
             return [
-                currentPos || { x: 350, y: 720 },
-                { x: 350, y: 800 }, 
-                { x: 0, y: 800 }   // Street
-              ];            
-          }          
+              currentPos || { x: 1070, y: 750 },
+              { x: 1070, y: 820 },   // Street
+              { x: 0, y: 820 }       // Exit left on street
+            ];
+          } else {
+            // Exit via left entrance (Entrance 1)
+            return [
+              currentPos || { x: 350, y: 750 },
+              { x: 350, y: 820 },    // Street
+              { x: 0, y: 820 }       // Exit left on street
+            ];            
+          }
         default:
             return [];
       }
@@ -1308,7 +1725,7 @@ export default {
       const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x);
       const angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
       let angleDiff = Math.abs(angle2 - angle1) * (180 / Math.PI);
-      if (angleDiff > 180) angleDiff = 360 - angleDiff;
+      if (angleDiff > 180) angleDiff = 600 - angleDiff;
       
       if (angleDiff < 45) return 'slight';
       if (angleDiff < 135) return 'corner';  // ~90 degrees
@@ -1335,7 +1752,8 @@ export default {
       if (animation && animation.rotation !== undefined) {
         return animation.rotation;
       }
-      return 0; // Default facing right
+      // Use proper rotation based on status instead of default 0
+      return this.getTruckRotation(shipment);    
     },
 
     /**
@@ -1560,6 +1978,7 @@ export default {
      * Returns array of waypoints for forklift movement
      */
     getForkliftWaypoints(shipment) {
+      const type = shipment.shipment_type;
       const unloadLocation = shipment.unload_location;
       const warehousePos = this.forkliftWarehousePositions[unloadLocation];
       const truckStopPos = this.forkliftTruckPositions[unloadLocation];  
@@ -1571,72 +1990,71 @@ export default {
       // Define specific paths for each warehouse to avoid obstacles
       switch(unloadLocation) {
         case 'Anbar_Salon_Tolid':
-          return {
-            truck: truckStopPos,
-            warehouse: warehousePos,
-            waypoints: [
-              truckStopPos,
-              warehousePos              
-            ]
-          };
+          if (type === 'Incoming') {
+            return {
+              truck: truckStopPos,
+              warehouse: warehousePos,
+              waypoints: [
+                truckStopPos,
+                warehousePos              
+              ]
+            };
+          } else {
+            return {
+              truck: { x: truckStopPos.x, y: truckStopPos.y - 60 },
+              warehouse: { x: warehousePos.x, y: warehousePos.y - 60 },
+              waypoints: [
+                { x: truckStopPos.x, y: truckStopPos.y - 60 },
+                { x: warehousePos.x, y: warehousePos.y - 60 }              
+              ]
+            };
+          }
         case 'Anbar_Sangin':
-          return {
-            truck: truckStopPos,
-            warehouse: warehousePos,
-            waypoints: [
-              truckStopPos,
-              warehousePos            
-            ]
-          };
+          if (type === 'Incoming') {
+            return {
+              truck: truckStopPos,
+              warehouse: warehousePos,
+              waypoints: [
+                truckStopPos,
+                warehousePos              
+              ]
+            };
+          } else {
+            return {
+              truck: { x: truckStopPos.x, y: truckStopPos.y + 130 },
+              warehouse: { x: warehousePos.x, y: warehousePos.y + 130 },
+              waypoints: [
+                { x: truckStopPos.x, y: truckStopPos.y + 130 },
+                { x: warehousePos.x, y: warehousePos.y + 130 },            
+              ]
+            };
+          }
+        case 'Anbar_Khamir_Ghadim':
+          if (type === 'Incoming') {
+            return {
+              truck: truckStopPos,
+              warehouse: warehousePos,
+              waypoints: [
+                truckStopPos,
+                warehousePos            
+              ]
+            };    
+          } else {
+            return {
+              truck: { x: truckStopPos.x, y: truckStopPos.y - 30 },
+              warehouse: { x: warehousePos.x, y: warehousePos.y - 30 },
+              waypoints: [
+                { x: truckStopPos.x, y: truckStopPos.y - 30 },
+                { x: warehousePos.x, y: warehousePos.y - 30 },            
+              ]
+            };
+          }
         case 'Anbar_Koochak':
         case 'Anbar_Parvandeh':
-          return {
-            truck: truckStopPos,
-            warehouse: warehousePos,
-            waypoints: [
-              truckStopPos,
-              warehousePos            
-            ]
-          };
-        case 'Anbar_Khamir_Ghadim':
-          return {
-            truck: truckStopPos,
-            warehouse: warehousePos,
-            waypoints: [
-              truckStopPos,
-              warehousePos            
-            ]
-          };
+        case 'Anbar_Muhavateh_Homayoun':
         case 'Anbar_Khamir_Kordan':
-          return {
-            truck: truckStopPos,
-            warehouse: warehousePos,
-            waypoints: [
-              truckStopPos,
-              warehousePos            
-            ]
-          };
         case 'Anbar_Muhvateh_Kardan':
-          return {
-            truck: truckStopPos,
-            warehouse: warehousePos,
-            waypoints: [
-              truckStopPos,
-              // { x: warehousePos.x, y: truckStopPos.y },
-              // { x: 1030, y: 90 },
-              // { x: 1100, y: 90 },
-              warehousePos
-            ]
-          };
         case 'Anbar_PAK':
-          return {
-            truck: truckStopPos,
-            warehouse: warehousePos,
-            waypoints: [
-              truckStopPos,
-              warehousePos            
-            ]
-          };
         case 'Anbar_Akhal':
           return {
             truck: truckStopPos,
@@ -1804,7 +2222,7 @@ export default {
     /**
      * Check if a static forklift should be hidden because an animated one is active
      */
-     isStaticForkliftHidden(forkliftNumber) {
+    isStaticForkliftHidden(forkliftNumber) {
       // Check if any shipment is in LoadingUnloading with matching unload_location
       const loadingShipments = this.activeShipments.filter(s => s.status === 'LoadingUnloading');
       
@@ -1814,13 +2232,13 @@ export default {
       switch(forkliftNumber) {
         case 1:
           // Forklift 1 - Near Mohavate Homayoun - hides for these warehouses
-          const f1Warehouses = ['Anbar_Koochak', 'Anbar_Parvandeh', 'Anbar_Khamir_Ghadim', 'Anbar_Mohavate_Homayoun'];
+          const f1Warehouses = ['Anbar_Koochak', 'Anbar_Parvandeh', 'Anbar_Khamir_Ghadim', 'Anbar_Muhavateh_Homayoun'];
           if (loadingShipments.some(s => f1Warehouses.includes(s.unload_location))) return true;
           if (activeMovement && (f1Warehouses.includes(activeMovement.from_anbar) || f1Warehouses.includes(activeMovement.to_anbar))) return true;
           return false;
         case 2:
           // Forklift 2 - Near Mohavate Kordan - hides for these warehouses
-          const f2Warehouses = ['Anbar_Mohavate_Kardan', 'Anbar_Muhvateh_Kardan', 'Anbar_Khamir_Kordan'];
+          const f2Warehouses = ['Anbar_Muhvateh_Kardan', 'Anbar_Muhvateh_Kardan', 'Anbar_Khamir_Kordan'];
           if (loadingShipments.some(s => f2Warehouses.includes(s.unload_location))) return true;
           if (activeMovement && (f2Warehouses.includes(activeMovement.from_anbar) || f2Warehouses.includes(activeMovement.to_anbar))) return true;
           return false;
@@ -1841,7 +2259,7 @@ export default {
     getStaticForkliftPosition(warehouseName) {
       // Define all static forklift positions
       const staticForklifts = [
-        { id: 1, x: 580, y: 95 },   // Forklift 1 - Near Mohavate Homayoun
+        { id: 1, x: 600, y: 95 },   // Forklift 1 - Near Mohavate Homayoun
         { id: 2, x: 1080, y: 35 },  // Forklift 2 - Near Khamir Kordan
         { id: 3, x: 270, y: 255 }   // Forklift 3 - Near Salon Tolid
       ];
@@ -1877,7 +2295,7 @@ export default {
      */
     getNearestForkliftId(warehouseName) {
       const staticForklifts = [
-        { id: 1, x: 580, y: 95 },
+        { id: 1, x: 600, y: 95 },
         { id: 2, x: 1080, y: 35 },
         { id: 3, x: 270, y: 255 }
       ];
@@ -1954,14 +2372,14 @@ export default {
           toPos
         ],
 
-        // Anbar_Khamir_Kordan & Anbar_Mohavate_Kordan
-        'Anbar_Khamir_Kordan_to_Anbar_Mohavate_Kardan': [
+        // Anbar_Khamir_Kordan & Anbar_Muhavateh_Kordan
+        'Anbar_Khamir_Kordan_to_Anbar_Muhvateh_Kardan': [
           fromPos,
           { x: 1220, y: 170 },  // Go down first
           { x: 980, y: 100 },  // Move right
           toPos
         ],
-        'Anbar_Mohavate_Kardan_to_Anbar_Khamir_Kordan': [
+        'Anbar_Muhvateh_Kardan_to_Anbar_Khamir_Kordan': [
           fromPos,
           { x: 980, y: 100 },
           { x: 1220, y: 170 },
@@ -2493,93 +2911,668 @@ export default {
         console.error(`❌ Failed to refresh inventory for ${warehouseName}:`, error)
       }
     },    
+
+    /**
+     * Check if a warehouse is currently being loaded/unloaded
+     */
+    isWarehouseActive(warehouseName) {
+      return this.activeShipments.some(
+        s => s.status === 'LoadingUnloading' && s.unload_location === warehouseName
+      )
+    },    
+
+    /**
+     * Check if Weight Station 1 is active (trucks being weighed)
+     */
+    isWeightStation1Active() {
+        return this.activeShipments.some(s => {
+          const truckStation = this.shipmentWeightStation[s.id];
+          
+          if (truckStation === 'Weight_Station_1') {
+            return s.status === 'Registered' || s.status === 'LoadedUnloaded';
+          }
+          
+          return false;
+        });
+    },
+
+    /**
+     * Check if Weight Station 2 is active (trucks being weighed after load/unloa
+     */
+    isWeightStation2Active() {
+      return this.activeShipments.some(s => {
+        // Check if this truck is actually at Weight Station 2
+        const truckStation = this.shipmentWeightStation[s.id];
+        
+        // W2 is active if a truck is there for weighing (Registered or LoadedUnloaded)
+        if (truckStation === 'Weight_Station_2') {
+          return s.status === 'Registered' || s.status === 'LoadedUnloaded';
+        }
+        
+        return false;
+      });
+    },
+
+    /**
+     * Check if Office is active (trucks processing documents)
+     */
+    isOfficeActive() {
+      return this.activeShipments.some(s => s.status === 'Office')
+    },
+
+    /**
+     * Check if a specific location is busy (occupied by another truck)
+     * @param {string} location - The location to check (warehouse name, 'Weight_Station_1', 'Weight_Station_2', 'Office')
+     * @param {number} excludeShipmentId - Shipment ID to exclude from check (the truck that wants to go there)
+     * @returns {boolean} - True if location is busy
+     */
+    isLocationBusy(location, excludeShipmentId = null) {
+      return this.activeShipments.some(shipment => {
+        // Exclude the current shipment from the check
+        if (excludeShipmentId && shipment.id === excludeShipmentId) {
+          return false;
+        }
+        
+        // Get where this shipment currently is or is heading to
+        const shipmentLocation = this.getShipmentCurrentLocation(shipment);
+        return shipmentLocation === location;
+      });
+    },
+
+    /**
+     * Determine where a shipment currently is or is heading to
+     * @param {Object} shipment - The shipment object
+     * @returns {string} - Location name
+     */
+    getShipmentCurrentLocation(shipment) {
+      const { status, unload_location } = shipment;
+      const trackedStation = this.shipmentWeightStation[shipment.id];
+
+      switch(status) {
+        case 'Registered':
+          // Trucks are heading to or at Weight Station 1 (or W2 for آخال)
+          return trackedStation || 'Weight_Station_1';
+          
+        case 'LoadingUnloading':
+          // Trucks are at the warehouse for loading/unloading
+          return unload_location || trackedStation || 'Weight_Station_1';
+          
+        case 'LoadedUnloaded':
+          // Trucks are heading to or at Weight Station 2 (or staying at W2 for آخال)
+          return trackedStation || 'Weight_Station_1';
+          
+        case 'Office':
+          // Return location STRING, not position object!
+          return trackedStation === 'Weight_Station_2' ? 'Office_Right' : 'Office_Left';
+
+      default:
+          return null;
+      }
+    },
+
+    /**
+     * Get where a truck is PHYSICALLY located (not where it's going)
+     * Based on where it was in the previous status
+     */
+    getShipmentCurrentPhysicalLocation(shipment) {
+    const { status, unload_location } = shipment;
+    const trackedStation = this.shipmentWeightStation[shipment.id];
+    const anim = this.truckAnimations[shipment.id];
+    
+    // If truck is animating, it's between locations (not blocking either)
+    if (anim && anim.animating) {
+      return null;
+    }
+    
+    // Based on status, determine where truck physically is:
+    switch(status) {
+      case 'Registered':
+        // Truck just arrived or is at weight station
+        // If animation hasn't happened yet, truck is at street (not blocking anything)
+        // If animation finished, truck is at the tracked weight station
+        if (anim && anim.currentX !== undefined) {
+          return trackedStation || 'Weight_Station_1';
+        }
+        return null; // Still on street
+        
+      case 'LoadingUnloading':
+        // Truck is at the warehouse
+        return unload_location;
+        
+      case 'LoadedUnloaded':
+        // Truck is at weight station for second weighing
+        return trackedStation || 'Weight_Station_1';
+        
+      case 'Office':
+        // Truck WAS at weight station, now needs to move to office
+        // If not animating, it's STILL at the weight station!
+        if (!anim || !anim.animating) {
+          return trackedStation || 'Weight_Station_1';
+        }
+        // If animation finished, truck is at office entrance
+        return trackedStation === 'Weight_Station_2' ? 'Office_Right' : 'Office_Left';
+        
+      case 'Delivered':
+        return null; // Gone
+        
+      default:
+        return null;
+    }
+    },
+
+    /**
+     * Check if Anbar_Salon_Tolid is busy
+     * @param {number} excludeShipmentId - Shipment to exclude
+     */
+    isAnbarSalonTolidBusy(excludeShipmentId = null) {
+      return this.isLocationBusy('Anbar_Salon_Tolid', excludeShipmentId);
+    },
+
+    /**
+     * Check if Weight Station 1 is busy
+     * @param {number} excludeShipmentId - Shipment to exclude
+     */
+    isWeightStation1Busy(excludeShipmentId = null) {
+      return this.isLocationBusy('Weight_Station_1', excludeShipmentId);
+    },
+
+    /**
+     * Check if Weight Station 2 is busy
+     * @param {number} excludeShipmentId - Shipment to exclude
+     */
+    isWeightStation2Busy(excludeShipmentId = null) {
+      return this.isLocationBusy('Weight_Station_2', excludeShipmentId);
+    },
+
+    /**
+     * Check if Office is busy
+     * @param {number} excludeShipmentId - Shipment to exclude
+     */
+    isOfficeBusy(excludeShipmentId = null) {
+      return this.isLocationBusy('Office', excludeShipmentId);
+    },
+
+    /**
+     * Get the destination location for a shipment based on its status
+     */
+    getShipmentDestination(shipment) {
+      const { status, unload_location, material_type } = shipment;
+      const isAkhal = material_type && material_type.indexOf('آخال') !== -1;
+      
+      // Get the station this shipment is using (if already tracked)
+      const trackedStation = this.shipmentWeightStation[shipment.id];
+
+      switch(status) {
+        case 'Registered':
+          return trackedStation || (isAkhal ? 'Weight_Station_2' : 'Weight_Station_1');
+        case 'LoadingUnloading':
+          return unload_location || (isAkhal ? 'Weight_Station_2' : 'Weight_Station_1');
+        case 'LoadedUnloaded':
+          return trackedStation || (isAkhal ? 'Weight_Station_2' : 'Weight_Station_1');
+        case 'Office':
+          // Office destination is based on which entrance (left or right)
+          return trackedStation === 'Weight_Station_2' ? 'Office_Right' : 'Office_Left';
+        default:
+          return null;
+      }
+    },
+
+    /**
+     * Check if a destination is busy by another truck
+     */
+    isDestinationBusy(destination, excludeShipmentId = null) {
+      console.log(`🔍 Checking if ${destination} is busy (excluding ${excludeShipmentId})`);
+      
+      const result = this.activeShipments.some(shipment => {
+        if (excludeShipmentId && shipment.id === excludeShipmentId) return false;
+        
+        // Check 1: Is another truck's DESTINATION this location?
+        const shipmentDest = this.getShipmentDestination(shipment);
+        
+        // Check 2: Is another truck's CURRENT LOCATION this location?
+        // (Truck is physically there but may be going somewhere else)
+        const currentLocation = this.getShipmentCurrentPhysicalLocation(shipment);
+        
+        console.log(`  - Shipment ${shipment.id} (${shipment.status}): dest=${shipmentDest}, current=${currentLocation}`);
+        
+        // Location is busy if a truck is there OR heading there
+        if (shipmentDest === destination || currentLocation === destination) {
+          const anim = this.truckAnimations[shipment.id];
+          console.log(`    Match! anim exists: ${!!anim}, animating: ${anim?.animating}`);
+        
+          // If truck is actively animating AWAY from this location, it's not blocking
+          if (anim && anim.animating && currentLocation === destination && shipmentDest !== destination) {
+            // Truck is leaving this location
+            return false;
+          }
+          
+          return true;
+        }
+        
+        return false;
+      });
+      
+      console.log(`🔍 Result: ${destination} is ${result ? 'BUSY' : 'FREE'}`);
+      return result;
+    },
+
+    /**
+     * Add shipment to queue for a destination
+     */
+    addToQueue(destination, shipment, waypoints) {
+      if (!this.truckQueue[destination]) {
+        this.truckQueue[destination] = [];
+      }
+      // Avoid duplicates
+      if (!this.truckQueue[destination].find(q => q.shipment.id === shipment.id)) {
+        this.truckQueue[destination].push({ shipment, waypoints });
+        console.log(`Truck ${shipment.id} queued for ${destination}. Queue size: ${this.truckQueue[destination].length}`);
+      }
+    },
+
+    /**
+     * Process queue for a destination (called when a truck leaves)
+     */
+    processQueue(destination) {
+      if (!this.truckQueue[destination] || this.truckQueue[destination].length === 0) return;
+      
+      // Check if destination is now free
+      if (!this.isDestinationBusy(destination)) {
+        const next = this.truckQueue[destination].shift();
+        if (next) {
+          console.log(`Processing queued truck ${next.shipment.id} for ${destination}`);
+          this.startTruckWithDestination(next.shipment, next.waypoints, destination);
+        }
+      }
+    },
+
+    /**
+     * Start truck animation with destination tracking
+     */
+    startTruckWithDestination(shipment, waypoints, destination) {
+      // Initialize animation state with destination
+      this.truckAnimations[shipment.id] = {
+        currentX: waypoints[0].x,
+        currentY: waypoints[0].y,
+        rotation: this.truckAnimations[shipment.id]?.rotation || 0,
+        animating: false,
+        targetDestination: destination  // Track where truck is heading
+      };
+      
+      setTimeout(() => {
+        this.animateTruckAlongPath(shipment, waypoints);
+      }, 100);
+    },    
+
+    /**
+     * Determine which weight station to use (checking availability)
+     * @param {Object} shipment - The shipment
+     * @param {boolean} checkAlternative - Whether to check for alternative if busy
+     * @returns {string} 'Weight_Station_1' or 'Weight_Station_2'
+     */
+    getAvailableWeightStation(shipment, checkAlternative = true) {
+      const material_type = shipment.material_type;
+      const isAkhal = material_type && material_type.indexOf('آخال') !== -1;
+      
+      // Default weight station based on material type
+      const defaultStation = isAkhal ? 'Weight_Station_2' : 'Weight_Station_1';
+      const alternativeStation = isAkhal ? 'Weight_Station_1' : 'Weight_Station_2';
+      
+      console.log(`🚛 getAvailableWeightStation for ${shipment.id}:`, {
+        defaultStation,
+        alternativeStation,
+        checkAlternative
+      });
+
+      if (!checkAlternative) {
+        return defaultStation;
+      }
+      
+      // Check if default is busy
+      const defaultBusy = this.isDestinationBusy(defaultStation, shipment.id);
+      console.log(`🚛 Is ${defaultStation} busy? ${defaultBusy}`);
+  
+      if (defaultBusy) {
+        const altBusy = this.isDestinationBusy(alternativeStation, shipment.id);
+        console.log(`🚛 Is ${alternativeStation} busy? ${altBusy}`);
+        if (!altBusy) {
+          console.log(`🚛 Returning alternative: ${alternativeStation}`);
+          return alternativeStation;
+        }
+      }
+      
+      console.log(`🚛 Returning default: ${defaultStation}`);
+      return defaultStation;    
+    },
+
+    /**
+     * Get position for truck waiting in entrance queue
+     */
+    getEntranceQueuePosition(shipmentId) {
+      const queueIndex = this.entranceQueue.indexOf(shipmentId);
+      if (queueIndex === -1 || queueIndex >= this.entranceQueuePositions.length) {
+        return this.entranceQueuePositions[this.entranceQueuePositions.length - 1];
+      }
+      return this.entranceQueuePositions[queueIndex];
+    },
+
+    /**
+     * Add truck to entrance queue (called when factory is full)
+     */
+    addToEntranceQueue(shipment) {
+      if (!this.entranceQueue.includes(shipment.id)) {
+        this.entranceQueue.push(shipment.id);
+        console.log(`🚛 Truck ${shipment.id} added to entrance queue. Position: ${this.entranceQueue.length}`);
+        
+        // Place truck at queue position (no animation needed, just waiting)
+        const queuePos = this.getEntranceQueuePosition(shipment.id);
+        this.truckAnimations[shipment.id] = {
+          currentX: queuePos.x,
+          currentY: queuePos.y,
+          rotation: 0,  // Horizontal, facing right toward entrance
+          animating: false,
+          inEntranceQueue: true
+        };
+      }
+    },
+
+    /**
+     * Process entrance queue - called when a truck exits factory
+     */
+    processEntranceQueue() {
+      if (this.entranceQueue.length === 0) return;
+      
+      // Check if we can let a truck in
+      if (this.trucksInsideFactory < this.MAX_TRUCKS_INSIDE) {
+        const nextTruckId = this.entranceQueue.shift();
+        const nextShipment = this.activeShipments.find(s => s.id === nextTruckId);
+        
+        if (nextShipment) {
+          console.log(`🚗 Processing entrance queue - Truck ${nextTruckId} can now enter!`);
+          
+          // Mark as no longer in entrance queue
+          if (this.truckAnimations[nextTruckId]) {
+            this.truckAnimations[nextTruckId].inEntranceQueue = false;
+          }
+          
+          // Generate waypoints and start animation
+          const waypoints = this.getWaypointsForShipment(nextShipment, null);
+          const destination = this.getShipmentDestination(nextShipment);
+          
+          if (waypoints.length > 1) {
+            this.startTruckWithDestination(nextShipment, waypoints, destination);
+          }
+        }
+        
+        // Shift remaining trucks forward in queue
+        this.updateEntranceQueuePositions();
+      }
+    },
+
+    /**
+     * Update positions of trucks waiting in entrance queue (after one leaves)
+     */
+    updateEntranceQueuePositions() {
+      this.entranceQueue.forEach((truckId, index) => {
+        const newPos = this.entranceQueuePositions[index] || 
+                      this.entranceQueuePositions[this.entranceQueuePositions.length - 1];
+        
+        // Animate to new queue position
+        if (this.truckAnimations[truckId]) {
+          // Simple instant move (or could animate)
+          this.truckAnimations[truckId].currentX = newPos.x;
+          this.truckAnimations[truckId].currentY = newPos.y;
+        }
+      });
+    },
   },
   watch: {
     activeShipments: {
       handler(newShipments, oldShipments) {
+        const isInitialLoad = !oldShipments || oldShipments.length === 0;
         
+        // PHASE 1: Initialize shipmentWeightStation for ALL trucks FIRST
         newShipments.forEach(shipment => {
-          // Check if truck status changed or is new
-          const oldShipment = oldShipments?.find(s => s.id === shipment.id);
+          // ALWAYS check localStorage first
+          const storedStation = localStorage.getItem(`truckStation_${shipment.id}`);
           
-          // Trigger animation if: new shipment, status changed, unload_location changed, OR initial load (no oldShipments)
+          if (storedStation) {
+            // localStorage has the authoritative value - use it
+            this.shipmentWeightStation[shipment.id] = storedStation;
+            console.log(`📂 Loaded truck ${shipment.id} station from localStorage: ${storedStation}`);
+          } else if (!this.shipmentWeightStation[shipment.id]) {
+            // No localStorage - set default but DON'T save yet
+            // (will be saved when truck actually goes to the station)
+            const isAkhal = shipment.material_type && shipment.material_type.indexOf('آخال') !== -1;
+            this.shipmentWeightStation[shipment.id] = isAkhal ? 'Weight_Station_2' : 'Weight_Station_1';
+            console.log(`🆕 Truck ${shipment.id} using default station: ${this.shipmentWeightStation[shipment.id]} (not saved yet)`);
+          }
+        });
+
+      // PHASE 1.5: Re-validate station assignments on initial load to prevent conflicts
+      if (isInitialLoad) {
+        const stationsInUse = {};  // { 'Weight_Station_1': [shipmentId, ...], 'Weight_Station_2': [...] }
+        
+        // Group trucks by their assigned station
+        newShipments.forEach(shipment => {
+          const station = this.shipmentWeightStation[shipment.id];
+          if (station && (shipment.status === 'Registered' || shipment.status === 'LoadedUnloaded')) {
+            if (!stationsInUse[station]) stationsInUse[station] = [];
+            stationsInUse[station].push(shipment.id);
+          }
+        });
+        
+        // If multiple trucks assigned to same station, reassign extras to alternative
+        Object.entries(stationsInUse).forEach(([station, truckIds]) => {
+          if (truckIds.length > 1) {
+            // Keep first truck, reassign the rest
+            const altStation = station === 'Weight_Station_1' ? 'Weight_Station_2' : 'Weight_Station_1';
+            
+            for (let i = 1; i < truckIds.length; i++) {
+              const truckId = truckIds[i];
+              // Only reassign if alternative is not also overloaded
+              const altCount = stationsInUse[altStation]?.length || 0;
+              if (altCount < truckIds.length - i) {
+                console.log(`🔄 Initial load conflict: Reassigning truck ${truckId} from ${station} to ${altStation}`);
+                this.shipmentWeightStation[truckId] = altStation;
+                localStorage.setItem(`truckStation_${truckId}`, altStation);
+                
+                // Add to alt station tracking
+                if (!stationsInUse[altStation]) stationsInUse[altStation] = [];
+                stationsInUse[altStation].push(truckId);
+              }
+            }
+          }
+        });
+      }
+        // PHASE 2: Process animations
+        console.log(`🔧 PHASE 2: isInitialLoad=${isInitialLoad}, oldShipments length=${oldShipments?.length || 0}`);
+
+        newShipments.forEach(shipment => {
+          const oldShipment = oldShipments?.find(s => s.id === shipment.id);
+                   
+          // STATUS CHANGE or INITIAL LOAD: Determine positions
           const unloadLocationChanged = oldShipment && oldShipment.unload_location !== shipment.unload_location;
-          if (!oldShipment || oldShipment.status !== shipment.status || unloadLocationChanged || !oldShipments) {           
-            // Get current animation state (if any)
+          const statusChanged = !oldShipment || oldShipment.status !== shipment.status;
+          
+          console.log(`🔧 Truck ${shipment.id}: oldShipment=${!!oldShipment}, statusChanged=${statusChanged}, unloadLocationChanged=${unloadLocationChanged}`);
+          
+          if (statusChanged || unloadLocationChanged) {
             const currentAnimation = this.truckAnimations[shipment.id];
             const currentPos = currentAnimation ? 
               { x: currentAnimation.currentX, y: currentAnimation.currentY } : 
-              null;  
+              null;
 
-            // Status changed - start animation
-            const waypoints = this.getWaypointsForShipment(shipment, currentPos);
+            // Cancel any existing animation
+            if (this.animationFrames[shipment.id]) {
+              cancelAnimationFrame(this.animationFrames[shipment.id]);
+            }
 
-            if (waypoints.length > 0) {
-              // Cancel any existing animation
-              if (this.animationFrames[shipment.id]) {
-                cancelAnimationFrame(this.animationFrames[shipment.id]);
-              }
-
-              // Only start animation if we have at least 2 waypoints
-              if(waypoints.length > 1) {
-                // Initialize position at start
-                this.truckAnimations[shipment.id] = {
-                  currentX: waypoints[0].x,
-                  currentY: waypoints[0].y,
-                  rotation: currentAnimation?.rotation || 0,
-                  animating: false
-                };
-                
-                // Start animation after small delay
-                setTimeout(() => {
-                  this.animateTruckAlongPath(shipment, waypoints);
-                }, 100);
-              } else {
-                // Only 1 waypoint - keep truck at that position but preserve rotation
-                if (!this.truckAnimations[shipment.id]) {
-                  this.truckAnimations[shipment.id] = {};
-                }
-                // Update position but preserve rotation
-                this.truckAnimations[shipment.id].currentX = waypoints[0].x;
-                this.truckAnimations[shipment.id].currentY = waypoints[0].y;
-                this.truckAnimations[shipment.id].animating = false;
-                // Keep existing rotation and movingLeft - don't overwrite!
-
-                // If no rotation exists, calculate based on how truck arrived at this position
-                if (this.truckAnimations[shipment.id].rotation === undefined) {
-                  // Get the previous status waypoints to determine arrival direction
-                  const prevStatus = this.getPreviousStatus(shipment.status);
-                  if (prevStatus) {
-                    const prevShipment = { ...shipment, status: prevStatus };
-                    const prevWaypoints = this.getWaypointsForShipment(prevShipment);
-                    if (prevWaypoints.length >= 2) {
-                      const lastSegmentStart = prevWaypoints[prevWaypoints.length - 2];
-                      const lastSegmentEnd = prevWaypoints[prevWaypoints.length - 1];
-                      const dx = lastSegmentEnd.x - lastSegmentStart.x;
-                      const dy = lastSegmentEnd.y - lastSegmentStart.y;
-                      
-                      if (Math.abs(dy) > Math.abs(dx) * 2) {
-                        this.truckAnimations[shipment.id].rotation = dy < 0 ? -90 : 90;
-                      } else {
-                        this.truckAnimations[shipment.id].rotation = 0;
-                      }
-                      this.truckAnimations[shipment.id].movingLeft = dx < 0;
-                    } else {
-                      this.truckAnimations[shipment.id].rotation = 0;
-                    }
-                  } else {
-                    this.truckAnimations[shipment.id].rotation = 0;
-                  }
-                }
+            // Get destination
+            let destination = this.getShipmentDestination(shipment);
+            
+            // Clear localStorage when truck goes to warehouse (LoadingUnloading with unload_location)
+            // This allows the truck to choose a new station for Weight 2
+            if (shipment.status === 'LoadingUnloading' && shipment.unload_location) {
+              const hadStation = localStorage.getItem(`truckStation_${shipment.id}`);
+              if (hadStation) {
+                localStorage.removeItem(`truckStation_${shipment.id}`);
+                console.log(`🗑️ Cleared station for truck ${shipment.id} (going to warehouse)`);
               }
             }
-          } else {
-            //console.warn(`⚠️ No waypoints for ${shipment.license_number}`)
+
+            // For weight stations: try alternative if default is busy
+            // ONLY for trucks in Registered status that have NO localStorage yet
+            const hasStoredStation = localStorage.getItem(`truckStation_${shipment.id}`);
+
+            // Only NEW trucks in Registered status can choose a station
+            const canChooseStation = !hasStoredStation && 
+              (shipment.status === 'Registered' || shipment.status === 'LoadedUnloaded');
+
+            if ((destination === 'Weight_Station_1' || destination === 'Weight_Station_2') && canChooseStation) {
+              // Run alternative logic for trucks entering weighing phase
+              if (this.isDestinationBusy(destination, shipment.id)) {
+                const altStation = destination === 'Weight_Station_1' ? 'Weight_Station_2' : 'Weight_Station_1';
+                
+                if (!this.isDestinationBusy(altStation, shipment.id)) {
+                  // Use alternative weight station
+                  console.log(`🔄 Truck ${shipment.id}: ${destination} is busy, using ${altStation}`);
+                  this.shipmentWeightStation[shipment.id] = altStation;
+                  destination = altStation;
+                }
+              }
+              
+              // Save the station for this truck
+              localStorage.setItem(`truckStation_${shipment.id}`, destination);
+              console.log(`💾 Saved truck ${shipment.id} station: ${destination}`);
+            }
+
+            // Generate waypoints with possibly updated weight station
+            const waypoints = this.getWaypointsForShipment(shipment, currentPos);
+            console.log(`🔧 Truck ${shipment.id}: waypoints.length=${waypoints.length}`);
+
+            if (waypoints.length > 1) {
+              // CHECK: For Registered trucks, verify factory capacity
+              if (shipment.status === 'Registered') {
+                // Count trucks already inside (exclude those in entrance queue)
+                const trucksInside = this.activeShipments.filter(s => 
+                  s.status !== 'Delivered' && 
+                  !this.entranceQueue.includes(s.id) &&
+                  s.id !== shipment.id  // Don't count this truck
+                ).length;
+                
+                if (trucksInside >= this.MAX_TRUCKS_INSIDE) {
+                  // Factory is full - add to entrance queue
+                  console.log(`🚫 Factory full (${trucksInside}/${this.MAX_TRUCKS_INSIDE}). Truck ${shipment.id} queued at entrance.`);
+                  this.addToEntranceQueue(shipment);
+                  return; // Don't proceed with animation
+                }
+              }
+
+              // On INITIAL LOAD: 
+              // - For Office status: ANIMATE from current position to Office
+              // - For other statuses: Place at END position (they're already there)
+              if (isInitialLoad) {
+                if (shipment.status === 'Registered'|| 
+                    shipment.status === 'LoadingUnloading'|| 
+                    shipment.status === 'LoadedUnloaded'|| 
+                    shipment.status === 'Office'|| 
+                    shipment.status === 'Delivered') {
+                  // Office trucks should animate from weight station to office
+                  console.log(`🚛 Truck ${shipment.id}: Moving to ${destination} (initial load)`);
+                  this.startTruckWithDestination(shipment, waypoints, destination);
+                } else {
+                  // Other trucks - place at end position
+                  const endPos = this.getTruckEndPosition(shipment);
+                  const rotation = this.getTruckRotation(shipment);
+                  
+                  this.truckAnimations[shipment.id] = {
+                    currentX: endPos.x,
+                    currentY: endPos.y,
+                    rotation: rotation,
+                    animating: false,
+                    flipX: 1
+                  };
+                }
+              } else {
+                // Not initial load: Check if destination is busy and animate
+                if (destination && this.isDestinationBusy(destination, shipment.id)) {
+                  console.log(`📋 Truck ${shipment.id}: Queuing for ${destination}`);
+                  this.addToQueue(destination, shipment, waypoints);
+                  
+                  if (!this.truckAnimations[shipment.id]) {
+                    this.truckAnimations[shipment.id] = {
+                      currentX: waypoints[0].x,
+                      currentY: waypoints[0].y,
+                      rotation: this.getTruckRotation(shipment),
+                      animating: false,
+                      flipX: 1
+                    };
+                  }              
+                } else {
+                // Destination is free - start animation
+                console.log(`🚛 Truck ${shipment.id}: Moving to ${destination}`);
+                
+                // Save weight station when truck leaves for warehouse/office
+                if (shipment.status === 'LoadingUnloading' || shipment.status === 'Office') {
+                  localStorage.setItem(`truckStation_${shipment.id}`, this.shipmentWeightStation[shipment.id]);
+                }
+                
+                this.startTruckWithDestination(shipment, waypoints, destination);
+              }
+            }
+            } else if (waypoints.length === 1) {
+              // Only 1 waypoint - place truck there
+              if (!this.truckAnimations[shipment.id]) {
+                this.truckAnimations[shipment.id] = {};
+              }
+              this.truckAnimations[shipment.id].currentX = waypoints[0].x;
+              this.truckAnimations[shipment.id].currentY = waypoints[0].y;
+              this.truckAnimations[shipment.id].animating = false;
+              
+              if (this.truckAnimations[shipment.id].rotation === undefined) {
+                this.truckAnimations[shipment.id].rotation = this.getTruckRotation(shipment);
+              }
+            }
           }
         });
+
+        // PHASE 2.5: Initialize position for trucks that have no animation data
+        // This handles the case when returning to the page and statusChanged is false
+        newShipments.forEach(shipment => {
+          console.log(`🔧 PHASE 2.5: Truck ${shipment.id}, has animation data: ${!!this.truckAnimations[shipment.id]}`);
+          if (!this.truckAnimations[shipment.id]) {
+            const endPos = this.getTruckEndPosition(shipment);
+            const rotation = this.getTruckRotation(shipment);
+            
+            this.truckAnimations[shipment.id] = {
+              currentX: endPos.x,
+              currentY: endPos.y,
+              rotation: rotation,
+              animating: false,
+              flipX: 1
+            };
+            console.log(`📍 Initialized position for truck ${shipment.id} at (${endPos.x}, ${endPos.y}) rotation=${rotation}`);
+          }
+        });
+
+        // PHASE 3: Clean up localStorage for delivered/removed trucks
+        // SKIP cleanup if no shipments (data still loading) or on initial load
+        if (newShipments.length > 0 && !isInitialLoad) {
+          const currentIds = newShipments.map(s => s.id);
+          Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('truckStation_')) {
+              const id = parseInt(key.replace('truckStation_', ''));
+              if (!currentIds.includes(id)) {
+                localStorage.removeItem(key);
+                console.log(`🗑️ Cleaned up localStorage for truck ${id}`);
+              }
+            }
+          });
+        }
       },
       deep: true,
-      immediate: true  // ← ADD THIS LINE! Triggers on initial load
+      immediate: true
     }
   }
 }
@@ -2617,15 +3610,21 @@ export default {
         
         <!-- Anbar Salon Tolid -->
         <g class="anbar-salon-tolid">
-          <rect x="40" y="10" width="200" height="430" fill="none" stroke="#000" stroke-width="2" />
+          <rect x="40" y="10" width="200" height="430" fill="none" 
+            :stroke="isWarehouseActive('Anbar_Salon_Tolid') ? '#ff4444' : '#000'" 
+            :stroke-width="isWarehouseActive('Anbar_Salon_Tolid') ? 4 : 2"
+            :class="{ 'warehouse-active': isWarehouseActive('Anbar_Salon_Tolid') }"
+          />
           <text x="140" y="430" text-anchor="middle" font-size="12" font-weight="bold">Anbar Salon Tolid</text>
           
           <!-- PM3 Area (increased width, equal gaps on sides and between) -->
           <rect x="50" y="15" width="63" height="230" fill="#f5f5f5" stroke="#000" stroke-width="2" />
           <!-- Top empty square -->
           <rect x="55" y="20" width="53" height="53" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <!-- <text x="81" y="140" text-anchor="middle" font-size="10" font-weight="bold">PM3</text> -->
           <!-- Bottom empty square -->
           <rect x="55" y="187" width="53" height="53" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <text x="81" y="216" text-anchor="middle" font-size="12" font-weight="bold">{{pm3Count}}</text>
           <text x="81" y="140" text-anchor="middle" font-size="12" font-weight="bold">PM3</text>
           
           <!-- PM2 Area (30% narrower: 63 * 0.7 = 44) -->
@@ -2634,6 +3633,7 @@ export default {
           <rect x="190" y="20" width="36" height="36" fill="#fff" stroke="#000" stroke-width="1.5" />
           <!-- Bottom empty square -->
           <rect x="190" y="109" width="36" height="36" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <text x="208" y="129" text-anchor="middle" font-size="12" font-weight="bold">{{pm2Count}}</text>
           <text x="208" y="90" text-anchor="middle" font-size="12" font-weight="bold">PM2</text>
           
           <!-- Dynamic Cylinders(Reels) in Anbar Salon Tolid -->
@@ -2743,13 +3743,21 @@ export default {
 
         <!-- Anbar Parvandeh -->
         <g class="anbar-parvandeh">
-          <rect x="240" y="69" width="190" height="50" fill="none" stroke="#000" stroke-width="2" />
+          <rect x="240" y="69" width="190" height="50" fill="none" 
+            :stroke="isWarehouseActive('Anbar_Parvandeh') ? '#ff4444' : '#000'" 
+            :stroke-width="isWarehouseActive('Anbar_Parvandeh') ? 4 : 2"
+            :class="{ 'warehouse-active': isWarehouseActive('Anbar_Parvandeh') }"
+          />
           <text x="335" y="103" text-anchor="middle" font-size="11" font-weight="bold">Anbar Parvandeh</text>
         </g>
 
         <!-- Anbar Koochak -->
         <g class="anbar-koochak">
-          <rect x="240" y="119" width="190" height="104" fill="none" stroke="#000" stroke-width="2" />
+          <rect x="240" y="119" width="190" height="104" fill="none" 
+            :stroke="isWarehouseActive('Anbar_Koochak') ? '#ff4444' : '#000'" 
+            :stroke-width="isWarehouseActive('Anbar_Koochak') ? 4 : 2"
+            :class="{ 'warehouse-active': isWarehouseActive('Anbar_Koochak') }"
+          />
           <text x="335" y="210" text-anchor="middle" font-size="11" font-weight="bold">Anbar Koochak</text>
           
           <!-- Pallet A 22 cube -->
@@ -2768,13 +3776,21 @@ export default {
 
         <!-- Anbar Khamir Ghadim -->
         <g class="anbar-khamir-ghadim">
-          <path d="M 710,69 L 240,69 L 240,10 L 900,10 L 900,69" fill="none" stroke="#000" stroke-width="2" />
-          <path d="M 710,69 L 710,140 L 900,140 L 900,69" fill="none" stroke="#000" stroke-width="2" />
-          <path d="M 710,140 L 710,180 L 900,180 L 900,140" fill="none" stroke="#000" stroke-width="2" />
-          <path d="M 710,180 L 710,223 L 900,223 L 900,180" fill="none" stroke="#000" stroke-width="2" />
-          <ellipse cx="485" cy="40" rx="90" ry="25" fill="#fff0d5" stroke="#000" stroke-width="1.5" />
-          <text x="500" y="43" text-anchor="middle" font-size="12" font-weight="bold">Anbar Khamir Ghadim</text>
-          <text x="800" y="165" text-anchor="middle" font-size="11" font-weight="bold">Water Station</text>
+          <path d="M 710,69 L 240,69 L 240,10 L 900,10 L 900,69" fill="none" 
+            :stroke="isWarehouseActive('Anbar_Khamir_Ghadim') ? '#ff4444' : '#000'" 
+            :stroke-width="isWarehouseActive('Anbar_Khamir_Ghadim') ? 4 : 2"
+            :class="{ 'warehouse-active': isWarehouseActive('Anbar_Khamir_Ghadim') }"
+          />
+          <path d="M 710,69 L 710,160 L 900,160 L 900,69" fill="none" 
+            :stroke="isWarehouseActive('Anbar_Khamir_Ghadim') ? '#ff4444' : '#000'" 
+            :stroke-width="isWarehouseActive('Anbar_Khamir_Ghadim') ? 4 : 2"
+            :class="{ 'warehouse-active': isWarehouseActive('Anbar_Khamir_Ghadim') }"
+          />
+          <path d="M 710,160 L 710,190 L 900,190 L 900,160" fill="none" stroke="#000" stroke-width="2" />
+          <path d="M 710,190 L 710,223 L 900,223 L 900,190" fill="none" stroke="#000" stroke-width="2" />
+          <ellipse cx="525" cy="40" rx="90" ry="25" fill="#fff0d5" stroke="#000" stroke-width="1.5" />
+          <text x="540" y="43" text-anchor="middle" font-size="12" font-weight="bold">Anbar Khamir Ghadim</text>
+          <text x="800" y="175" text-anchor="middle" font-size="11" font-weight="bold">Water Station</text>
           <text x="800" y="210" text-anchor="middle" font-size="11" font-weight="bold">Gas Station</text>
           
           <rect x="270" y="10" width="100" height="30" fill="#fff" stroke="#000" stroke-width="1.5" />
@@ -2864,28 +3880,42 @@ export default {
           </g>          
         </g>
 
-        <!-- Anbar Mohavate Homayoun -->
-        <!-- Dynamic Akhal Packs in Anbar Mohavate Homayoun -->
-        <g v-for="pack in getWarehouseAkhalPacks('Anbar_Mohavate_Homayoun')" 
-            :key="pack.id" 
-            :transform="`translate(${pack.x}, ${pack.y})`"
-            @mouseenter="showAkhalTooltip($event, pack)"
-            @mouseleave="hideTooltip"
-            style="cursor: pointer;"
-        >          
-          <!-- Front face -->
-          <path d="M 0,12 L 35,12 L 35,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-          <text x="18" y="26" text-anchor="middle" font-size="7" font-weight="bold">{{ pack.kind }}</text>
-          <text x="18" y="38" text-anchor="middle" font-size="6">{{ pack.weight }}t</text>
-          <!-- Top face -->
-          <path d="M 0,12 L 12,5 L 47,5 L 35,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
-          <!-- Right side face -->
-          <path d="M 35,12 L 47,5 L 47,37 L 35,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+        <!-- Anbar Muhavateh Homayoun -->
+        <!-- Dynamic Akhal Packs in Anbar Muhavateh Homayoun -->
+        <g class="anbar-mohavate-kardan">
+          <!-- Invisible border rect - becomes visible when active -->
+          <rect x="520" y="70" width="70" height="60" 
+                :fill="isWarehouseActive('Anbar_Muhavateh_Homayoun') ? 'rgba(255, 68, 68, 0.1)' : 'none'" 
+                :stroke="isWarehouseActive('Anbar_Muhavateh_Homayoun') ? '#ff4444' : 'transparent'" 
+                :stroke-width="isWarehouseActive('Anbar_Muhavateh_Homayoun') ? 3 : 0"
+                :class="{ 'warehouse-active': isWarehouseActive('Anbar_Muhavateh_Homayoun') }"
+          /> 
+          <g v-for="pack in getWarehouseAkhalPacks('Anbar_Muhavateh_Homayoun')" 
+              :key="pack.id" 
+              :transform="`translate(${pack.x}, ${pack.y})`"
+              @mouseenter="showAkhalTooltip($event, pack)"
+              @mouseleave="hideTooltip"
+              style="cursor: pointer;"
+          >          
+            <!-- Front face -->
+            <path d="M 0,12 L 35,12 L 35,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+            <text x="18" y="26" text-anchor="middle" font-size="7" font-weight="bold">{{ pack.kind }}</text>
+            <text x="18" y="38" text-anchor="middle" font-size="6">{{ pack.weight }}t</text>
+            <!-- Top face -->
+            <path d="M 0,12 L 12,5 L 47,5 L 35,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+            <!-- Right side face -->
+            <path d="M 35,12 L 47,5 L 47,37 L 35,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+          </g>
         </g>
 
         <!-- Weight Station 1 -->
         <g class="weight-station-1">
-          <rect x="320" y="490" width="60" height="150" fill="#fff" stroke="#000" stroke-width="2" />
+          <rect x="320" y="490" width="60" height="150" fill="#fff" 
+            :fill="isWeightStation1Active() ? 'rgba(255, 165, 0, 0.2)' : '#fff'" 
+            :stroke="isWeightStation1Active() ? '#ff8c00' : '#000'" 
+            :stroke-width="isWeightStation1Active() ? 3 : 2"
+            :class="{ 'station-active': isWeightStation1Active() }"
+          />
           <text x="350" y="565" text-anchor="middle" font-size="11" font-weight="bold">Weight</text>
           <text x="350" y="585" text-anchor="middle" font-size="11" font-weight="bold">Station</text>
           <text x="350" y="605" text-anchor="middle" font-size="11" font-weight="bold">1</text>
@@ -2894,7 +3924,11 @@ export default {
         <!-- Anbar Sangin -->
         <g class="anbar-sangin">
           <rect x="710" y="345" width="190" height="55" fill="none" stroke="#000" stroke-width="2" />
-          <rect x="710" y="400" width="190" height="210" fill="none" stroke="#000" stroke-width="2" />
+          <rect x="710" y="400" width="190" height="210" fill="none" 
+            :stroke="isWarehouseActive('Anbar_Sangin') ? '#ff4444' : '#000'" 
+            :stroke-width="isWarehouseActive('Anbar_Sangin') ? 4 : 2"
+            :class="{ 'warehouse-active': isWarehouseActive('Anbar_Sangin') }"
+          />
           <text x="800" y="380" text-anchor="middle" font-size="12" font-weight="bold">Anbar Abzar</text>
           <text x="800" y="600" text-anchor="middle" font-size="12" font-weight="bold">Anbar Sangin</text>
           
@@ -3103,28 +4137,39 @@ export default {
           </g>
         </g>
 
-        <!-- Anbar Mohavate Kordan (Akhal) -->
-        <!-- Dynamic Akhal Packs in Anbar Mohavate Kardan -->
-        <g v-for="pack in getWarehouseAkhalPacks('Anbar_Mohavate_Kardan')" 
-            :key="pack.id" 
-            :transform="`translate(${pack.x}, ${pack.y})`"
-            @mouseenter="showAkhalTooltip($event, pack)"
-            @mouseleave="hideTooltip"
-            style="cursor: pointer;"
-        >          
-          <!-- Front face -->
-          <path d="M 0,12 L 35,12 L 35,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-          <text x="18" y="26" text-anchor="middle" font-size="7" font-weight="bold">{{ pack.kind }}</text>
-          <text x="18" y="38" text-anchor="middle" font-size="6">{{ pack.weight }}t</text>
-          <!-- Top face -->
-          <path d="M 0,12 L 12,5 L 47,5 L 35,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
-          <!-- Right side face -->
-          <path d="M 35,12 L 47,5 L 47,37 L 35,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+        <!-- Anbar Muhvateh Kardan (Akhal) -->
+        <!-- Dynamic Akhal Packs in Anbar Muhvateh Kardan -->
+        <rect x="973" y="10" width="300" height="50" 
+              :fill="isWarehouseActive('Anbar_Muhvateh_Kardan') ? 'rgba(255, 68, 68, 0.1)' : 'none'" 
+              :stroke="isWarehouseActive('Anbar_Muhvateh_Kardan') ? '#ff4444' : 'transparent'" 
+              :stroke-width="isWarehouseActive('Anbar_Muhvateh_Kardan') ? 3 : 0"
+              :class="{ 'warehouse-active': isWarehouseActive('Anbar_Muhvateh_Kardan') }"
+        />         
+        
+        <g v-for="pack in getWarehouseAkhalPacks('Anbar_Muhvateh_Kardan')" 
+          :key="pack.id" 
+          :transform="`translate(${pack.x}, ${pack.y})`"
+          @mouseenter="showAkhalTooltip($event, pack)"
+          @mouseleave="hideTooltip"
+          style="cursor: pointer;"
+      >          
+        <!-- Front face -->
+        <path d="M 0,12 L 35,12 L 35,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+        <text x="18" y="26" text-anchor="middle" font-size="7" font-weight="bold">{{ pack.kind }}</text>
+        <text x="18" y="38" text-anchor="middle" font-size="6">{{ pack.weight }}t</text>
+        <!-- Top face -->
+        <path d="M 0,12 L 12,5 L 47,5 L 35,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+        <!-- Right side face -->
+        <path d="M 35,12 L 47,5 L 47,37 L 35,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
         </g>
 
         <!-- Anbar Khamir Kordan-->
         <g class="right-container">
-          <rect x="1170" y="70" width="210" height="220" fill="none" stroke="#000" stroke-width="2" />
+          <rect x="1170" y="70" width="210" height="220" fill="none" 
+            :stroke="isWarehouseActive('Anbar_Khamir_Kordan') ? '#ff4444' : '#000'" 
+            :stroke-width="isWarehouseActive('Anbar_Khamir_Kordan') ? 4 : 2"
+            :class="{ 'warehouse-active': isWarehouseActive('Anbar_Khamir_Kordan') }"
+          />
           <path d="M 1170,290 L 1170,660 L 1380,660 L 1380,290" fill="none" stroke="#000" stroke-width="1.5" />
 
           <!-- Oval inside Anbar Khamir Kordan -->
@@ -3158,18 +4203,28 @@ export default {
           <rect x="1295" y="325" width="45" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
           <!-- Bottom empty square -->
           <rect x="1295" y="570" width="45" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <text x="1322" y="470" text-anchor="middle" font-size="12" font-weight="bold">PM4</text>
+          <text x="1316" y="595" text-anchor="middle" font-size="12" font-weight="bold">{{pm4Count}}</text>
+          <text x="1320" y="470" text-anchor="middle" font-size="12" font-weight="bold">PM4</text>
         </g>
 
         <!-- Office (increased 20%: 108×108, moved up with gap below Kordan) -->
         <g class="office">
-          <rect x="1170" y="670" width="100" height="80" fill="#fff" stroke="#000" stroke-width="2" />
-          <text x="1224" y="729" text-anchor="middle" font-size="12" font-weight="bold">Office</text>
+          <rect x="1170" y="670" width="100" height="80" fill="#fff" 
+            :fill="isOfficeActive() ? 'rgba(0, 150, 255, 0.2)' : '#fff'" 
+            :stroke="isOfficeActive() ? '#0096ff' : '#000'" 
+            :stroke-width="isOfficeActive() ? 3 : 2"
+            :class="{ 'station-active': isOfficeActive() }"          />
+          <text x="1224" y="715" text-anchor="middle" font-size="12" font-weight="bold">Office</text>
         </g>
 
         <!-- Weight Station 2 (narrower, taller, moved down, stick to Kordan at x=1170) -->
         <g class="weight-station-2">
-          <rect x="1110" y="320" width="60" height="150" fill="#fff" stroke="#000" stroke-width="2" />
+          <rect x="1110" y="320" width="60" height="150" fill="#fff" 
+            :fill="isWeightStation2Active() ? 'rgba(255, 165, 0, 0.2)' : '#fff'" 
+            :stroke="isWeightStation2Active() ? '#ff8c00' : '#000'" 
+            :stroke-width="isWeightStation2Active() ? 3 : 2"
+            :class="{ 'station-active': isWeightStation2Active() }"
+          />
           <text x="1140" y="395" text-anchor="middle" font-size="11" font-weight="bold">Weight</text>
           <text x="1140" y="415" text-anchor="middle" font-size="11" font-weight="bold">Station</text>
           <text x="1140" y="435" text-anchor="middle" font-size="11" font-weight="bold">2</text>
@@ -3177,8 +4232,12 @@ export default {
 
         <!-- Anbar PAK -->
         <g class="anbar-pak">
-          <rect x="1380" y="460" width="60" height="323" fill="none" stroke="#000" stroke-width="2" />
-          <text x="1410" y="620" text-anchor="middle" font-size="12" font-weight="bold" transform="rotate(90 1410 620)">Anbar PAK</text>
+          <rect x="1380" y="460" width="80" height="323" fill="none" 
+            :stroke="isWarehouseActive('Anbar_PAK') ? '#ff4444' : '#000'" 
+            :stroke-width="isWarehouseActive('Anbar_PAK') ? 4 : 2"
+            :class="{ 'warehouse-active': isWarehouseActive('Anbar_PAK') }"
+          />
+          <text x="1430" y="620" text-anchor="middle" font-size="12" font-weight="bold" transform="rotate(90 1410 620)">Anbar PAK</text>
         
           <!-- Dynamic Akhal Packs in Anbar PAK -->
           <g v-for="pack in getWarehouseAkhalPacks('Anbar_PAK')" 
@@ -3201,7 +4260,11 @@ export default {
 
         <!-- Anbar Akhal -->
         <g class="anbar-akhal-bottom">
-          <rect x="40" y="843" width="320" height="125" fill="none" stroke="#000" stroke-width="2" />
+          <rect x="40" y="843" width="320" height="125" fill="none" 
+            :stroke="isWarehouseActive('Anbar_Akhal') ? '#ff4444' : '#000'" 
+            :stroke-width="isWarehouseActive('Anbar_Akhal') ? 4 : 2"
+            :class="{ 'warehouse-active': isWarehouseActive('Anbar_Akhal') }"
+          />
           <text x="200" y="860" text-anchor="middle" font-size="12" font-weight="bold">Anbar Akhal</text>          
 
           <!-- Dynamic Akhal Packs in Anbar Akhal -->
@@ -3237,7 +4300,7 @@ export default {
         <!-- STATIC FORKLIFTS (Always Visible - Ready State - BIGGER) -->
         <g class="static-forklifts">
           <!-- Forklift 1 - Near Mohavate Homayoun -->
-          <g v-if="!isStaticForkliftHidden(1)" transform="translate(580, 95)">
+          <g v-if="!isStaticForkliftHidden(1)" transform="translate(600, 95)">
             <text x="0" y="0" font-size="30" text-anchor="middle">🚜</text>
             <circle cx="-12" cy="-13" r="5" fill="#4caf50" stroke="#fff" stroke-width="2" />
             <text x="0" y="20" text-anchor="middle" font-size="8" fill="#4caf50" font-weight="bold">READY</text>
@@ -4320,13 +5383,13 @@ export default {
         <p style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 6px; font-size: 12px;">Slow Motion Workflow:</p>
         <p style="font-size: 9px; line-height: 1.8;">
           <strong>Registered:</strong><br/>
-          Entrance → W.Station 1 (15s) ⚠️<br/>
+          Entrance 1/2 → W.Station 1/2 (15s) ⚠️<br/>
           <strong>LoadingUnloading:</strong><br/>
           At Warehouse + Forklift 🚜<br/>
           <strong>LoadedUnloaded:</strong><br/>
-          Warehouse → W.Station 2 (15s)<br/>
+          Warehouse → W.Station 1/2 (15s)<br/>
           <strong>Office:</strong><br/>
-          W.Station 2 → Office<br/>
+          W.Station 1/2 → Office<br/>
           <strong>Delivered:</strong><br/>
           Office → Street (Exit)
         </p>
@@ -5166,6 +6229,36 @@ export default {
 .custom-tooltip text {
   font-weight: 500;
   text-shadow: none;
+}
+
+/* Blinking animation for active warehouse */
+@keyframes warehouse-blink {
+  0%, 100% { stroke: #ff4444; stroke-opacity: 1; }
+  50% { stroke: #ff8888; stroke-opacity: 0.5; }
+}
+
+.warehouse-active {
+  animation: warehouse-blink 1s ease-in-out infinite;
+}
+
+/* Blinking animation for active stations */
+@keyframes station-blink {
+  0%, 100% { stroke-opacity: 1; }
+  50% { stroke-opacity: 0.4; }
+}
+
+.station-active {
+  animation: station-blink 0.8s ease-in-out infinite;
+}
+
+/* Different colors for different stations */
+.warehouse-active {
+  animation: warehouse-blink 1s ease-in-out infinite;
+}
+
+@keyframes warehouse-blink {
+  0%, 100% { stroke: #ff4444; stroke-opacity: 1; }
+  50% { stroke: #ff8888; stroke-opacity: 0.5; }
 }
 </style>
 

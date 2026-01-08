@@ -5,7 +5,7 @@ from django.shortcuts import render, redirect
 from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator, EmptyPage
-from django.db import connection
+from django.db import connection, transaction
 from django.db.models import Sum, Count, Value, F, Q, Subquery, OuterRef, Case, When, CharField, FloatField
 from django.db.models.functions import Concat, Substr, Replace, StrIndex, Coalesce
 from django.db.models.base import ModelBase
@@ -2165,33 +2165,34 @@ def used(request):
             material_type = raw[0].material_type
             isEnough = len(anbar) < quantity_to_unload
 
-            for record in anbar:
-                # update anbar:
-                record.status='Used'
-                record.location='Consumption DB'
-                record.logs=record.logs+log_generator(forklift_driver, 'Used')
-                if isEnough:
-                    log_message = log_generator(forklift_driver, 'Used') + not_enough_log_generator('Consumption DB')
-                else:
-                    log_message = log_generator(forklift_driver, 'Used')
+            with transaction.atomic():
+                for record in anbar:
+                    # update anbar:
+                    record.status='Used'
+                    record.location='Consumption DB'
+                    record.logs=record.logs+log_generator(forklift_driver, 'Used')
+                    if isEnough:
+                        log_message = log_generator(forklift_driver, 'Used') + not_enough_log_generator('Consumption DB')
+                    else:
+                        log_message = log_generator(forklift_driver, 'Used')
 
-                record.last_date=get_time()
-                record.save()
-                consumption = Consumption(
-                        shipment_id=record.shipment_id,
-                        receive_date=get_time(),
-                        supplier_name=supplier_name,
-                        material_name=material_name,
-                        material_type=material_type,
-                        location='Consumption DB',
-                        unit=unit,
-                        status='Used',
-                        grade=record.grade,
-                        comments=record.comments,
-                        username=forklift_driver,
-                        logs=log_message + append_log({'comments': record.comments}, 'used')
-                )
-                consumption.save()
+                    record.last_date=get_time()
+                    record.save()
+                    consumption = Consumption(
+                            shipment_id=record.shipment_id,
+                            receive_date=get_time(),
+                            supplier_name=supplier_name,
+                            material_name=material_name,
+                            material_type=material_type,
+                            location='Consumption DB',
+                            unit=unit,
+                            status='Used',
+                            grade=record.grade,
+                            comments=record.comments,
+                            username=forklift_driver,
+                            logs=log_message + append_log({'comments': record.comments}, 'used')
+                    )
+                    consumption.save()
 
             if isEnough:
                 # Alert here
@@ -4967,6 +4968,10 @@ def get_warehouse_inventory(request):
         warehouse_names = [name for name in all_table_names if name.startswith('Anbar_')]
 
         inventory_data = {}
+        data = {}
+        pm2_count = 0
+        pm3_count = 0
+        pm4_count = 0
 
         for warehouse_name in warehouse_names:
             WarehouseModel = apps.get_model('myapp', warehouse_name)
@@ -4999,12 +5004,18 @@ def get_warehouse_inventory(request):
                     products_by_width[width] = {
                         'width': width,
                         'count': 0,
-                        'weight': 0.0
+                        'weight': 0.0,
                     }
                 products_by_width[width]['count'] += 1
                 # Weight formula: (gsm * length * width) / 100000000 (result in tons)
                 item_weight = ((item.gsm or 0) * (item.length or 0) * (item.width or 0)) / 100000000.0
                 products_by_width[width]['weight'] += item_weight
+                if item.reel_number.lower().startswith('pm2_'):
+                    pm2_count += 1
+                elif item.reel_number.lower().startswith('pm3_'):
+                    pm3_count += 1
+                elif item.reel_number.lower().startswith('pm4_'):
+                    pm4_count += 1
             
             # Round weights and convert to sorted list
             products_list = []
@@ -5042,7 +5053,7 @@ def get_warehouse_inventory(request):
                     akhals_by_kind[kind] = {
                         'kind': kind,
                         'count': 0,
-                        'weight': 0.0
+                        'weight': 0.0,
                     }
                 akhals_by_kind[kind]['count'] += 1
                 
@@ -5070,7 +5081,7 @@ def get_warehouse_inventory(request):
             inventory_data[warehouse_name] = {
                 'total_count': in_stock.count(),
                 'total_weight': round(products_weight + raw_materials_weight + akhals_weight, 2),
-                'products': products_list,  # Array of {width, count, weight}
+                'products': products_list,  # Array of {width, count, weight, pm2_count, pm3_count, pm4_count}
                 'raw_materials': {
                     'count': raw_materials_count,
                     'weight': round(raw_materials_weight, 2),
@@ -5078,7 +5089,13 @@ def get_warehouse_inventory(request):
                 'akhals': akhals_list,  # Array of {kind, count, weight}
             }
 
-        return JsonResponse({'status': 'success', 'data': inventory_data}, status=200)
+        data = {
+            'inventory_data': inventory_data,
+            'pm2_count': pm2_count,
+            'pm3_count': pm3_count,
+            'pm4_count': pm4_count,
+        }
+        return JsonResponse({'status': 'success', 'data': data}, status=200)
         
     except Exception as e:
         print(f"Error in get_warehouse_inventory: {e}")
