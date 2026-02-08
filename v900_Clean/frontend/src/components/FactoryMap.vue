@@ -1,6 +1,6 @@
 <script>
 import axios from 'axios';
-
+ 
 export default {
   name: 'FactoryMap',
   data() {
@@ -10,11 +10,16 @@ export default {
       activeShipments: [],
       warehouseInventory: {},
       warehouseInventoryDetails: {}, // Detailed inventory with count and weight
+      pmCount: 0,
       pm2Count: 0,
       pm3Count: 0,
       pm4Count: 0,
+      todayPm2Count: 0,
+      todayPm3Count: 0,
+      todayPm4Count: 0,
       pollingInterval: null,
       lastUpdateTime: null,
+
       // Location coordinates mapping (matching SVG positions)
       locationCoordinates: {
         'Anbar_Akhal': { x: 200, y: 905 },
@@ -67,6 +72,15 @@ export default {
         'Anbar_Koochak': { x: 360, y: 125 },
         'Anbar_Salon_Tolid': { x: 130, y: 15 },
         'Anbar_Akhal': { x: 310, y: 860 },
+      },
+
+      productionLineBadgePosition: {
+        'PM2_daily': { x: 275, y: 75 },
+        'PM3_daily': { x: 160, y: 95 },
+        'PM4_daily': { x: 1390, y: 390 },
+        'PM2_weekly': { x: 275, y: 165 },
+        'PM3_weekly': { x: 160, y: 260 },
+        'PM4_weekly': { x: 1390, y: 640 },
       },
 
       MAX_TRUCKS_INSIDE: 2,  // Maximum trucks allowed inside factory
@@ -194,7 +208,7 @@ export default {
         },
         'Anbar_Muhvateh_Kardan': {
           startX: 975,
-          startY: 10,
+          startY: 15,
           spacingX: 0,
           spacingY: 40,
           packsPerRow: 6,
@@ -210,7 +224,7 @@ export default {
         },
         'Anbar_Muhavateh_Homayoun': {
           startX: 515,
-          startY: 70,
+          startY: 75,
           spacingX: 40,
           spacingY: 0,
           packsPerRow: 2,
@@ -246,7 +260,8 @@ export default {
      * Get total inventory across all warehouses
      */
     totalInventory() {
-      return Object.values(this.warehouseInventory).reduce((a, b) => a + b, 0)
+      //return Object.values(this.warehouseInventory).reduce((a, b) => a + b, 0)
+      return this.pmCount
     },
     
     /**
@@ -369,7 +384,7 @@ export default {
     /**
      * Connect to movement WebSocket for real-time warehouse movement notifications
      */
-     connectMovementWebSocket() {
+    connectMovementWebSocket() {
       // Determine WebSocket URL based on current location
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const host = window.location.hostname
@@ -510,15 +525,21 @@ export default {
         const response = await axios.get('/myapp/api/getWarehouseInventory')
         
         if (response.data.status === 'success') {
-          const { inventory_data, pm2_count, pm3_count, pm4_count } = response.data.data
+          const { inventory_data, pm_count, pm2_count, pm3_count, pm4_count,
+            today_pm2_count, today_pm3_count, today_pm4_count,
+           } = response.data.data
           
           // Store detailed data
           this.warehouseInventoryDetails = inventory_data
           
           // Store PM counts
+          this.pmCount = pm_count || 0
           this.pm2Count = pm2_count || 0
           this.pm3Count = pm3_count || 0
           this.pm4Count = pm4_count || 0
+          this.todayPm2Count = today_pm2_count || 0
+          this.todayPm3Count = today_pm3_count || 0
+          this.todayPm4Count = today_pm4_count || 0
 
           // Create simple count map for backward compatibility
           const simpleCounts = {}
@@ -2865,6 +2886,70 @@ export default {
     },
 
     /**
+     * Show tooltip for Akhal pack
+     */
+    showPMDailyProductionTooltip(event, productionLine) {
+      let content = '', x = 0, y = 0;
+
+      if(productionLine === "PM2"){
+        content = `${this.todayPm2Count} - تعداد کل تولید امروز`;
+
+        x = this.productionLineBadgePosition["PM2_daily"].x
+        y = this.productionLineBadgePosition["PM2_daily"].y
+
+      } else if(productionLine === "PM3"){
+        content = `${this.todayPm3Count} - تعداد کل تولید امروز`;
+
+        x = this.productionLineBadgePosition["PM3_daily"].x
+        y = this.productionLineBadgePosition["PM3_daily"].y
+
+      } else {
+        content = `${this.todayPm4Count} - تعداد کل تولید امروز`;
+
+        x = this.productionLineBadgePosition["PM4_daily"].x
+        y = this.productionLineBadgePosition["PM4_daily"].y
+      }
+      
+      this.tooltip = {
+        visible: true,
+        content: content,
+        x: x + 20,
+        y: y - 10
+      };
+    },
+
+
+    /**
+     * Show tooltip for Akhal pack
+     */
+    showPMWeeklyProductionTooltip(event, productionLine) {
+      let content = '', x = 0, y = 0;
+
+      if(productionLine === "PM2"){
+        content = `${this.pm2Count} -  کل تولید 7 روز گذشته`;
+        x = this.productionLineBadgePosition["PM2_weekly"].x
+        y = this.productionLineBadgePosition["PM2_weekly"].y
+
+      } else if(productionLine === "PM3"){
+        content = `${this.pm3Count} -  کل تولید 7 روز گذشته`;
+        x = this.productionLineBadgePosition["PM3_weekly"].x
+        y = this.productionLineBadgePosition["PM3_weekly"].y
+
+      } else {
+        content = `${this.pm4Count} -  کل تولید 7 روز گذشته`;
+        x = this.productionLineBadgePosition["PM4_weekly"].x
+        y = this.productionLineBadgePosition["PM4_weekly"].y
+      }
+      
+      this.tooltip = {
+        visible: true,
+        content: content,
+        x: x + 20,
+        y: y - 10
+      };
+    },
+
+    /**
      * Hide tooltip
      */
     hideTooltip() {
@@ -2876,7 +2961,7 @@ export default {
      * @param {string} warehouseName - The warehouse to refresh
      */
     async refreshWarehouseInventory(warehouseName) {
-      console.log(`🔄 Refreshing inventory for: ${warehouseName}`)
+      // console.log(`🔄 Refreshing inventory for: ${warehouseName}`)
       
       try {
         let response
@@ -3339,13 +3424,13 @@ export default {
           if (storedStation) {
             // localStorage has the authoritative value - use it
             this.shipmentWeightStation[shipment.id] = storedStation;
-            console.log(`📂 Loaded truck ${shipment.id} station from localStorage: ${storedStation}`);
+            // console.log(`📂 Loaded truck ${shipment.id} station from localStorage: ${storedStation}`);
           } else if (!this.shipmentWeightStation[shipment.id]) {
             // No localStorage - set default but DON'T save yet
             // (will be saved when truck actually goes to the station)
             const isAkhal = shipment.material_type && shipment.material_type.indexOf('آخال') !== -1;
             this.shipmentWeightStation[shipment.id] = isAkhal ? 'Weight_Station_2' : 'Weight_Station_1';
-            console.log(`🆕 Truck ${shipment.id} using default station: ${this.shipmentWeightStation[shipment.id]} (not saved yet)`);
+            // console.log(`🆕 Truck ${shipment.id} using default station: ${this.shipmentWeightStation[shipment.id]} (not saved yet)`);
           }
         });
 
@@ -3373,7 +3458,7 @@ export default {
               // Only reassign if alternative is not also overloaded
               const altCount = stationsInUse[altStation]?.length || 0;
               if (altCount < truckIds.length - i) {
-                console.log(`🔄 Initial load conflict: Reassigning truck ${truckId} from ${station} to ${altStation}`);
+                // console.log(`🔄 Initial load conflict: Reassigning truck ${truckId} from ${station} to ${altStation}`);
                 this.shipmentWeightStation[truckId] = altStation;
                 localStorage.setItem(`truckStation_${truckId}`, altStation);
                 
@@ -3386,7 +3471,7 @@ export default {
         });
       }
         // PHASE 2: Process animations
-        console.log(`🔧 PHASE 2: isInitialLoad=${isInitialLoad}, oldShipments length=${oldShipments?.length || 0}`);
+        // console.log(`🔧 PHASE 2: isInitialLoad=${isInitialLoad}, oldShipments length=${oldShipments?.length || 0}`);
 
         newShipments.forEach(shipment => {
           const oldShipment = oldShipments?.find(s => s.id === shipment.id);
@@ -3395,7 +3480,7 @@ export default {
           const unloadLocationChanged = oldShipment && oldShipment.unload_location !== shipment.unload_location;
           const statusChanged = !oldShipment || oldShipment.status !== shipment.status;
           
-          console.log(`🔧 Truck ${shipment.id}: oldShipment=${!!oldShipment}, statusChanged=${statusChanged}, unloadLocationChanged=${unloadLocationChanged}`);
+          // console.log(`🔧 Truck ${shipment.id}: oldShipment=${!!oldShipment}, statusChanged=${statusChanged}, unloadLocationChanged=${unloadLocationChanged}`);
           
           if (statusChanged || unloadLocationChanged) {
             const currentAnimation = this.truckAnimations[shipment.id];
@@ -3436,7 +3521,7 @@ export default {
                 
                 if (!this.isDestinationBusy(altStation, shipment.id)) {
                   // Use alternative weight station
-                  console.log(`🔄 Truck ${shipment.id}: ${destination} is busy, using ${altStation}`);
+                  // console.log(`🔄 Truck ${shipment.id}: ${destination} is busy, using ${altStation}`);
                   this.shipmentWeightStation[shipment.id] = altStation;
                   destination = altStation;
                 }
@@ -3444,12 +3529,12 @@ export default {
               
               // Save the station for this truck
               localStorage.setItem(`truckStation_${shipment.id}`, destination);
-              console.log(`💾 Saved truck ${shipment.id} station: ${destination}`);
+              // console.log(`💾 Saved truck ${shipment.id} station: ${destination}`);
             }
 
             // Generate waypoints with possibly updated weight station
             const waypoints = this.getWaypointsForShipment(shipment, currentPos);
-            console.log(`🔧 Truck ${shipment.id}: waypoints.length=${waypoints.length}`);
+            // console.log(`🔧 Truck ${shipment.id}: waypoints.length=${waypoints.length}`);
 
             if (waypoints.length > 1) {
               // CHECK: For Registered trucks, verify factory capacity
@@ -3463,7 +3548,7 @@ export default {
                 
                 if (trucksInside >= this.MAX_TRUCKS_INSIDE) {
                   // Factory is full - add to entrance queue
-                  console.log(`🚫 Factory full (${trucksInside}/${this.MAX_TRUCKS_INSIDE}). Truck ${shipment.id} queued at entrance.`);
+                  // console.log(`🚫 Factory full (${trucksInside}/${this.MAX_TRUCKS_INSIDE}). Truck ${shipment.id} queued at entrance.`);
                   this.addToEntranceQueue(shipment);
                   return; // Don't proceed with animation
                 }
@@ -3479,7 +3564,7 @@ export default {
                     shipment.status === 'Office'|| 
                     shipment.status === 'Delivered') {
                   // Office trucks should animate from weight station to office
-                  console.log(`🚛 Truck ${shipment.id}: Moving to ${destination} (initial load)`);
+                  // console.log(`🚛 Truck ${shipment.id}: Moving to ${destination} (initial load)`);
                   this.startTruckWithDestination(shipment, waypoints, destination);
                 } else {
                   // Other trucks - place at end position
@@ -3497,7 +3582,7 @@ export default {
               } else {
                 // Not initial load: Check if destination is busy and animate
                 if (destination && this.isDestinationBusy(destination, shipment.id)) {
-                  console.log(`📋 Truck ${shipment.id}: Queuing for ${destination}`);
+                  // console.log(`📋 Truck ${shipment.id}: Queuing for ${destination}`);
                   this.addToQueue(destination, shipment, waypoints);
                   
                   if (!this.truckAnimations[shipment.id]) {
@@ -3511,7 +3596,7 @@ export default {
                   }              
                 } else {
                 // Destination is free - start animation
-                console.log(`🚛 Truck ${shipment.id}: Moving to ${destination}`);
+                // console.log(`🚛 Truck ${shipment.id}: Moving to ${destination}`);
                 
                 // Save weight station when truck leaves for warehouse/office
                 if (shipment.status === 'LoadingUnloading' || shipment.status === 'Office') {
@@ -3540,7 +3625,7 @@ export default {
         // PHASE 2.5: Initialize position for trucks that have no animation data
         // This handles the case when returning to the page and statusChanged is false
         newShipments.forEach(shipment => {
-          console.log(`🔧 PHASE 2.5: Truck ${shipment.id}, has animation data: ${!!this.truckAnimations[shipment.id]}`);
+          // console.log(`🔧 PHASE 2.5: Truck ${shipment.id}, has animation data: ${!!this.truckAnimations[shipment.id]}`);
           if (!this.truckAnimations[shipment.id]) {
             const endPos = this.getTruckEndPosition(shipment);
             const rotation = this.getTruckRotation(shipment);
@@ -3552,7 +3637,7 @@ export default {
               animating: false,
               flipX: 1
             };
-            console.log(`📍 Initialized position for truck ${shipment.id} at (${endPos.x}, ${endPos.y}) rotation=${rotation}`);
+            // console.log(`📍 Initialized position for truck ${shipment.id} at (${endPos.x}, ${endPos.y}) rotation=${rotation}`);
           }
         });
 
@@ -3620,20 +3705,46 @@ export default {
           <!-- PM3 Area (increased width, equal gaps on sides and between) -->
           <rect x="50" y="15" width="63" height="230" fill="#f5f5f5" stroke="#000" stroke-width="2" />
           <!-- Top empty square -->
-          <rect x="55" y="20" width="53" height="53" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <!-- <text x="81" y="140" text-anchor="middle" font-size="10" font-weight="bold">PM3</text> -->
+          <g
+            @mouseenter="showPMDailyProductionTooltip($event, 'PM3')"
+            @mouseleave="hideTooltip"
+            style="cursor: pointer;"
+          >
+            <rect x="55" y="20" width="53" height="53" fill="#fff" stroke="#000" stroke-width="1.5" />
+            <text x="81" y="49" text-anchor="middle" font-size="12" font-weight="bold">{{todayPm3Count}}</text>
+          </g>
+            <!-- <text x="81" y="140" text-anchor="middle" font-size="10" font-weight="bold">PM3</text> -->
           <!-- Bottom empty square -->
-          <rect x="55" y="187" width="53" height="53" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <text x="81" y="216" text-anchor="middle" font-size="12" font-weight="bold">{{pm3Count}}</text>
+          <g
+            @mouseenter="showPMWeeklyProductionTooltip($event, 'PM3')"
+            @mouseleave="hideTooltip"
+            style="cursor: pointer;"
+          >
+            <rect x="55" y="187" width="53" height="53" fill="#fff" stroke="#000" stroke-width="1.5" />
+            <text x="81" y="216" text-anchor="middle" font-size="12" font-weight="bold">{{pm3Count}}</text>
+          </g>
           <text x="81" y="140" text-anchor="middle" font-size="12" font-weight="bold">PM3</text>
           
           <!-- PM2 Area (30% narrower: 63 * 0.7 = 44) -->
           <rect x="185" y="15" width="45" height="140" fill="#f5f5f5" stroke="#000" stroke-width="2" />
           <!-- Top empty square -->
-          <rect x="190" y="20" width="36" height="36" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <g
+            @mouseenter="showPMDailyProductionTooltip($event, 'PM2')"
+            @mouseleave="hideTooltip"
+            style="cursor: pointer;"
+          >
+            <rect x="190" y="20" width="36" height="36" fill="#fff" stroke="#000" stroke-width="1.5" />
+            <text x="208" y="40" text-anchor="middle" font-size="12" font-weight="bold">{{todayPm2Count}}</text>
+          </g>
           <!-- Bottom empty square -->
-          <rect x="190" y="109" width="36" height="36" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <text x="208" y="129" text-anchor="middle" font-size="12" font-weight="bold">{{pm2Count}}</text>
+          <g
+            @mouseenter="showPMWeeklyProductionTooltip($event, 'PM2')"
+            @mouseleave="hideTooltip"
+            style="cursor: pointer;"
+          >
+            <rect x="190" y="115" width="36" height="36" fill="#fff" stroke="#000" stroke-width="1.5" />
+            <text x="208" y="135" text-anchor="middle" font-size="12" font-weight="bold">{{pm2Count}}</text>
+          </g>
           <text x="208" y="90" text-anchor="middle" font-size="12" font-weight="bold">PM2</text>
           
           <!-- Dynamic Cylinders(Reels) in Anbar Salon Tolid -->
@@ -3798,11 +3909,11 @@ export default {
           
           <!-- Dynamic Akhal Packs in Anbar Khamir Ghadim -->
           <g v-for="pack in getWarehouseAkhalPacks('Anbar_Khamir_Ghadim')" 
-              :key="pack.id"
-              :transform="`translate(${pack.x}, ${pack.y})`"
-              @mouseenter="showAkhalTooltip($event, pack)"
-              @mouseleave="hideTooltip"
-              style="cursor: pointer;"            
+            :key="pack.id"
+            :transform="`translate(${pack.x}, ${pack.y})`"
+            @mouseenter="showAkhalTooltip($event, pack)"
+            @mouseleave="hideTooltip"
+            style="cursor: pointer;"            
           >
             <!-- Front face -->
             <path d="M 0,12 L 35,12 L 35,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
@@ -3884,7 +3995,7 @@ export default {
         <!-- Dynamic Akhal Packs in Anbar Muhavateh Homayoun -->
         <g class="anbar-mohavate-kardan">
           <!-- Invisible border rect - becomes visible when active -->
-          <rect x="520" y="70" width="70" height="60" 
+          <rect x="515" y="75" width="70" height="60" 
                 :fill="isWarehouseActive('Anbar_Muhavateh_Homayoun') ? 'rgba(255, 68, 68, 0.1)' : 'none'" 
                 :stroke="isWarehouseActive('Anbar_Muhavateh_Homayoun') ? '#ff4444' : 'transparent'" 
                 :stroke-width="isWarehouseActive('Anbar_Muhavateh_Homayoun') ? 3 : 0"
@@ -4139,8 +4250,8 @@ export default {
 
         <!-- Anbar Muhvateh Kardan (Akhal) -->
         <!-- Dynamic Akhal Packs in Anbar Muhvateh Kardan -->
-        <rect x="973" y="10" width="300" height="50" 
-              :fill="isWarehouseActive('Anbar_Muhvateh_Kardan') ? 'rgba(255, 68, 68, 0.1)' : 'none'" 
+        <rect x="975" y="15" width="300" height="50" 
+              :fill="isWarehouseActive('Anbar_Muhvateh_Kardan') ? 'rgba(255, 68, 68, 0.1)' : 'none'"
               :stroke="isWarehouseActive('Anbar_Muhvateh_Kardan') ? '#ff4444' : 'transparent'" 
               :stroke-width="isWarehouseActive('Anbar_Muhvateh_Kardan') ? 3 : 0"
               :class="{ 'warehouse-active': isWarehouseActive('Anbar_Muhvateh_Kardan') }"
@@ -4152,15 +4263,15 @@ export default {
           @mouseenter="showAkhalTooltip($event, pack)"
           @mouseleave="hideTooltip"
           style="cursor: pointer;"
-      >          
-        <!-- Front face -->
-        <path d="M 0,12 L 35,12 L 35,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
-        <text x="18" y="26" text-anchor="middle" font-size="7" font-weight="bold">{{ pack.kind }}</text>
-        <text x="18" y="38" text-anchor="middle" font-size="6">{{ pack.weight }}t</text>
-        <!-- Top face -->
-        <path d="M 0,12 L 12,5 L 47,5 L 35,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
-        <!-- Right side face -->
-        <path d="M 35,12 L 47,5 L 47,37 L 35,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
+        >          
+          <!-- Front face -->
+          <path d="M 0,12 L 35,12 L 35,44 L 0,44 Z" fill="#ddd" stroke="#000" stroke-width="1.5" />
+          <text x="18" y="26" text-anchor="middle" font-size="7" font-weight="bold">{{ pack.kind }}</text>
+          <text x="18" y="38" text-anchor="middle" font-size="6">{{ pack.weight }}t</text>
+          <!-- Top face -->
+          <path d="M 0,12 L 12,5 L 47,5 L 35,12 Z" fill="#eee" stroke="#000" stroke-width="1.5" />
+          <!-- Right side face -->
+          <path d="M 35,12 L 47,5 L 47,37 L 35,44 Z" fill="#bbb" stroke="#000" stroke-width="1.5" />
         </g>
 
         <!-- Anbar Khamir Kordan-->
@@ -4200,11 +4311,24 @@ export default {
           <!-- PM4 Area  -->
           <rect x="1290" y="320" width="55" height="300" fill="#f5f5f5" stroke="#000" stroke-width="2" />
           <!-- Top empty square -->
-          <rect x="1295" y="325" width="45" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
+          <g
+            @mouseenter="showPMDailyProductionTooltip($event, 'PM4')"
+            @mouseleave="hideTooltip"
+            style="cursor: pointer;"
+          >
+            <rect x="1295" y="325" width="45" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
+            <text x="1316" y="350" text-anchor="middle" font-size="12" font-weight="bold">{{todayPm4Count}}</text>
+          </g>
           <!-- Bottom empty square -->
-          <rect x="1295" y="570" width="45" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
-          <text x="1316" y="595" text-anchor="middle" font-size="12" font-weight="bold">{{pm4Count}}</text>
-          <text x="1320" y="470" text-anchor="middle" font-size="12" font-weight="bold">PM4</text>
+          <g
+            @mouseenter="showPMWeeklyProductionTooltip($event, 'PM4')"
+            @mouseleave="hideTooltip"
+            style="cursor: pointer;"
+          >
+            <rect x="1295" y="570" width="45" height="45" fill="#fff" stroke="#000" stroke-width="1.5" />
+            <text x="1316" y="595" text-anchor="middle" font-size="12" font-weight="bold">{{pm4Count}}</text>
+          </g>
+            <text x="1320" y="470" text-anchor="middle" font-size="12" font-weight="bold">PM4</text>
         </g>
 
         <!-- Office (increased 20%: 108×108, moved up with gap below Kordan) -->
@@ -4861,59 +4985,60 @@ export default {
           
           <!-- Title with Icon -->
           <text x="1430" y="865" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff">
-            📊 STATUS
+            STATUS 📊
           </text>
           
           <!-- === Row 1: TRUCKS === -->
-          <text x="1350" y="888" font-size="10" fill="#ffd54f" font-weight="bold">
-            🚚 Trucks:
+          <text x="1350" y="888" font-size="12" fill="#ffd54f" font-weight="bold">
+            :Trucks 🚚
           </text>
-          <text x="1380" y="888" text-anchor="end" font-size="14" fill="#fff" font-weight="bold">
+          <text x="1380" y="888" text-anchor="end" font-size="12" fill="#fff" font-weight="bold">
             {{ activeShipments.length }}
           </text>
           
-          <text x="1395" y="888" font-size="9" fill="#a5d6a7">
-            In:
+          <text x="1395" y="888" font-size="13" fill="#a5d6a7">
+             :In
           </text>
-          <text x="1450" y="888" text-anchor="end" font-size="11" fill="#fff" font-weight="bold">
+          <text x="1450" y="888" text-anchor="end" font-size="13" fill="#fff" font-weight="bold">
             {{ incomingCount }}
           </text>
           
-          <text x="1460" y="888" font-size="9" fill="#90caf9">
-            Out:
+          <text x="1460" y="888" font-size="13" fill="#90caf9">
+             :Out
           </text>
-          <text x="1515" y="888" text-anchor="end" font-size="11" fill="#fff" font-weight="bold">
+          <text x="1515" y="888" text-anchor="end" font-size="13" fill="#fff" font-weight="bold">
             {{ outgoingCount }}
           </text>
           
-          <text x="1525" y="888" font-size="9" fill="#ffab91">
-            Load:
+          <text x="1525" y="888" font-size="13" fill="#ffab91">
+             :Load
           </text>
-          <text x="1665" y="888" text-anchor="end" font-size="11" fill="#fff" font-weight="bold">
+          <text x="1665" y="888" text-anchor="end" font-size="13" fill="#fff" font-weight="bold">
             {{ activeLoadingCount }}
           </text>
           
           <!-- === Row 2: MOVEMENTS === -->
-          <text x="1295" y="910" font-size="9" fill="#fff9c4">
-            → To W1:
+          <text x="1295" y="912" font-size="12" fill="#fff9c4">
+            → :To W1
           </text>
-          <text x="1380" y="910" text-anchor="end" font-size="11" fill="#fff" font-weight="bold">
+          <text x="1380" y="912" text-anchor="end" font-size="12" fill="#fff" font-weight="bold">
             {{ registeredCount }}
           </text>
           
-          <text x="1395" y="910" font-size="9" fill="#f8bbd0">
-            → To W2:
-          </text>
-          <text x="1515" y="910" text-anchor="end" font-size="11" fill="#fff" font-weight="bold">
+          <text x="1395" y="912" font-size="12" fill="#f8bbd0">
+            → :To W2
+          </text> 
+          <text x="1515" y="912" text-anchor="end" font-size="12" fill="#fff" font-weight="bold">
             {{ loadedUnloadedCount }}
           </text>
           
           <!-- === Row 3: TOTAL STOCK === -->
-          <text x="1350" y="935" font-size="11" fill="#b39ddb" font-weight="bold">
-            📦 Stock:
+          <text x="1350" y="935" font-size="12" fill="#b39ddb" font-weight="bold">
+            :Stock 📦
           </text>
-          <text x="1450" y="935" text-anchor="end" font-size="18" fill="#fff" font-weight="bold">
-            {{ totalInventory }}
+          
+          <text x="1450" y="935" text-anchor="end" font-size="12" fill="#fff" font-weight="bold">
+            :Reels {{ totalInventory }}
           </text>
         </g>
 
@@ -5379,7 +5504,7 @@ export default {
         </router-link>
       </div>
       
-      <div class="sidebar-footer">
+      <div class="sidebar-footer" dir="ltr">
         <p style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 6px; font-size: 12px;">Slow Motion Workflow:</p>
         <p style="font-size: 9px; line-height: 1.8;">
           <strong>Registered:</strong><br/>
@@ -5405,7 +5530,7 @@ export default {
         </p>
         <p style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.3);">
           <strong>Total Inventory:</strong><br/>
-          <span style="font-size: 16px; color: #ffeb3b;">{{ totalInventory }}</span> Reels
+          Reels <span style="font-size: 16px; color: #ffeb3b;">{{ totalInventory }}</span>
         </p>
       </div>
     </div>
@@ -5761,6 +5886,8 @@ export default {
   .sidebar-footer {
     padding: 15px 10px;
     font-size: 10px;
+    direction: ltr;
+    unicode-bidi: bidi-override;
   }
   
   .map-title {
